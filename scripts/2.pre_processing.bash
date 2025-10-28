@@ -17,12 +17,9 @@
 #
 #-----------------------------------------------------------------------------#
 
-if [ $# -ne 4 -a $# -ne 1 ]
-then
+if [ $# -ne 4 ] && [ $# -ne 5 ]; then
    echo ""
-   echo "Instructions: execute the command below"
-   echo ""
-   echo "${0} EXP_NAME/OP RESOLUTION LABELI FCST"
+   echo "Usage: ${0} EXP_NAME RESOLUTION LABELI FCST [SST_FLAG]"
    echo ""
    echo "EXP_NAME    :: Forcing: GFS"
    echo "            :: Others options to be added later..."
@@ -30,6 +27,7 @@ then
    echo "                                                                 40962  (120 km)"
    echo "LABELI      :: Initial date YYYYMMDDHH, e.g.: 2024010100"
    echo "FCST        :: Forecast hours, e.g.: 24 or 36, etc."
+   echo "SST_FLAG    :: on | off  (default: off)"
    echo ""
    echo "24 hour forecast example for 24km:"
    echo "${0} GFS 1024002 2024010100 24"
@@ -63,7 +61,32 @@ EXP=${1};         #EXP=GFS
 RES=${2};         #RES=1024002
 YYYYMMDDHHi=${3}; #YYYYMMDDHHi=2024012000
 FCST=${4};        #FCST=24
+SST_FLAG="${5:-off}"   # allow optional 5th arg
 #-------------------------------------------------------
+
+
+# Lianet: Choose namelist template based on flag -------
+if [ "${SST_FLAG}" = "on" ]; then
+  NAMELIST="${SCRIPTS}/namelists/namelist.init_atmosphere.SST"
+else
+  NAMELIST="${SCRIPTS}/namelists/namelist.init_atmosphere.TEMPLATE"
+fi
+
+if [ ! -f "${NAMELIST}" ]; then
+  echo -e "${RED}ERROR${NC}: ${NAMELIST} not found."
+  exit 1
+fi
+
+# (Optional guardrail: if user forced on/off, ensure namelist agrees)
+if [ "${SST_FLAG}" = "on" ]; then
+  config_init_case=$(grep -i 'config_init_case' "${NAMELIST}" | sed 's/!.*$//' | tail -n1 | awk -F'=' '{print $2}' | tr -cd '0-9')
+  config_input_sst=$(grep -i 'config_input_sst' "${NAMELIST}" | sed 's/!.*$//' | tail -n1 | awk -F'=' '{print tolower($2)}' | tr -d ' .,\t')
+  if [ "${config_init_case}" != "8" ] || [ "${config_input_sst}" != "true" ]; then
+    echo -e "${RED}ERROR${NC}: SST_FLAG=on requires init_case=8 and config_input_sst=true in ${NAMELIST}."
+    exit 1
+  fi
+fi
+#------------------------------------------------------
 
 
 # Local variables--------------------------------------
@@ -92,6 +115,50 @@ rsync -rv --chmod=ugo=rw ${DIRDADOS}/MONAN_datain/datain/fixed ${DATAIN}
 rsync -rv --chmod=ugo=rwx ${DIRDADOS}/MONAN_datain/execs ${DIRHOMED}
 ln -sf ${DIRDADOS}/MONAN_datain/datain/WPS_GEOG ${DATAIN}
 
+# --- Lianet: SST handling (based on namelist and forecast window) -----------------------
+
+if [ "${SST_FLAG}" = "on" ]; then
+
+   config_fg_interval=$(grep -i 'config_fg_interval' "${NAMELIST}" | sed 's/!.*$//' | tail -n1 | awk -F'=' '{print $2}' | tr -d ' ,\t')
+   
+   SSTDIR="/pesq/dados/bam/paulo.kubota/monan/databcs/sst"
+   SSTDESTDIR="${DATAIN}/SST"
+   echo -e "${GREEN}==>${NC} Copying files from ${SSTDIR} into ${SSTDESTDIR} ...\n"
+   
+   mkdir -p $SSTDESTDIR
+   
+   # Start/end epochs from the script's start (YYYYMMDDHHi) and computed final (yyyymmddhhf)
+   start_epoch=$(date -d "${yyyymmddi} ${hhi}:00" +%s)
+   end_epoch=$(date -d "${yyyymmddhhf:0:4}-${yyyymmddhhf:4:2}-${yyyymmddhhf:6:2} ${yyyymmddhhf:8:2}:00" +%s)
+   
+   # Set step_sec based on config_fg_interval
+   if [ -z "${config_fg_interval}" ]; then
+      echo -e "${RED}ERROR${NC}: config_fg_interval is not set in ${NAMELIST}."
+      exit 1
+   else
+      step_sec=$config_fg_interval
+   fi
+   echo "Using step_sec: $step_sec seconds"   
+   
+   # Copy files
+   for ((t=${start_epoch}; t<=${end_epoch}; t+=step_sec)); do
+      tag=$(date -d "@${t}" +"%Y-%m-%d_%H")
+      src="${SSTDIR}/SST:${tag}"
+      dst="${SSTDESTDIR}/SST:${tag}"
+      if [ -e "${src}" ]; then
+         if [ ! -e "${dst}" ]; then
+            cp "${src}" "${dst}"
+         else
+            echo -e "${YELLOW}INFO${NC}: File already exists in destination: ${dst}"
+         fi
+      else
+         echo -e "${YELLOW}WARNING${NC}: Missing SST source file: ${src}"
+      fi      
+   done
+fi
+# -------------------------------------------------------------------------------
+
+
 
 # Creating the x1.${RES}.static.nc file once, if does not exist yet:---------------
 if [ ! -s ${DATAIN}/fixed/x1.${RES}.static.nc ]
@@ -112,7 +179,7 @@ time ./make_degrib.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
 
 # Init Atmosphere phase:------------------------------------------------------------
 echo -e  "${GREEN}==>${NC} Submiting Init Atmosphere...\n"
-time ./make_initatmos.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+time ./make_initatmos.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} ${SST_FLAG}
 #----------------------------------------------------------------------------------
 
 

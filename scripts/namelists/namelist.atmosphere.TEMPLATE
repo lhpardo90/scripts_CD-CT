@@ -15,7 +15,7 @@
     config_horiz_mixing = '2d_smagorinsky'
     config_len_disp = 0.0
     config_visc4_2dsmag = 0.05
-    config_w_adv_order = 3
+    config_w_adv_order = 3        !!!!!!!! Check, Paulo uses 4, also below!!!!
     config_theta_adv_order = 3
     config_scalar_adv_order = 3
     config_u_vadv_order = 3
@@ -23,7 +23,7 @@
     config_theta_vadv_order = 3
     config_scalar_vadv_order = 3
     config_scalar_advection = true
-    config_positive_definite = false
+    config_positive_definite = false        !!!!! IIUC, this option is currently not implemented, so true wouldn't have any effect and will give a warning. config_monotonic=true should garantee positive definitiveness I think
     config_monotonic = true
     config_coef_3rd_order = 0.25
     config_epssm = 0.1
@@ -44,7 +44,7 @@
     config_block_decomp_file_prefix = 'x1.#RES#.graph.info.part.'
 /
 &restart
-    config_do_restart = false
+    config_do_restart = false          !!!! Set to true later for my monthly restarts
 /
 &printout
     config_print_global_minmax_vel = true
@@ -55,21 +55,21 @@
     config_IAU_window_length_s = 21600.
 /
 &physics
-    config_sst_update = false
-    config_sstdiurn_update = false
+    config_sst_update = true           !!!!! Set to true for climate runs, false for nwp runs
+    config_sstdiurn_update = true      !!!!! Set to true for climate runs, false for nwp runs
     config_deepsoiltemp_update = false
     config_radtlw_interval = '00:30:00'
     config_radtsw_interval = '00:30:00'
     config_conv_interval = '#CONFIG_CONV_INTERVAL#'
     config_bucket_update = 'none'
-    config_physics_suite = 'convection_permitting_monan'     
+    config_physics_suite = 'convection_permitting_monan'
     config_mynn_edmf = 0
 /
 &gf_monan
-    config_gf_pcvol = 0
-    config_gf_cporg = 1
-    config_gf_gustf = 1
-    config_gf_sub3d = 0
+    config_gf_pcvol = 0          
+    config_gf_cporg = 1          
+    config_gf_gustf = 1          
+    config_gf_sub3d = 0          
 /
 
 &soundings

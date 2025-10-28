@@ -85,7 +85,10 @@ printf -v t_strout "%02d:%02d:%02d" "$h" "$m" "$s"
 # From now on, CONFI_LEN_DISP becames cte = 0.0, pickin up this value from static file.
 
 # Calculating default parameters for different resolutions
-if [ $RES -eq 1024002 ]; then  #24Km
+if [ $RES -eq 165536 ]; then  #30Km
+   CONFIG_DT=150.0
+   CONFIG_CONV_INTERVAL="00:15:00"
+elif [ $RES -eq 1024002 ]; then  #24Km
    CONFIG_DT=150.0
    CONFIG_CONV_INTERVAL="00:15:00"
 elif [ $RES -eq 2621442 ]; then  #15Km
@@ -161,6 +164,16 @@ cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE} ${DIRRU
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.surface ${DIRRUN}
 
 
+# Lianet -- If config_sst_update = true in namelist, copy the sfc_update file to DIRRUN
+if grep -Eqi '^[[:space:]]*config_sst_update[[:space:]]*=[[:space:]]*(\.?true\.?)' "${DIRRUN}/namelist.atmosphere"; then
+  sfc_update_src="${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.sfc_update.nc"
+  if [ ! -s "${sfc_update_src}" ]; then
+    echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
+    echo -e  "${RED}==>${NC} [${0}] config_sst_update=true but missing ${sfc_update_src}.\n"
+    exit -1
+  fi
+  cp -f "${sfc_update_src}" "${DIRRUN}"
+fi
 
 cp -f ${SCRIPTS}/setenv.bash ${DIRRUN}
 rm -f ${DIRRUN}/model.bash 

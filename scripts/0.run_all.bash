@@ -43,9 +43,9 @@ github_link="https://github.com/monanadmin/MONAN-Model.git"
 monan_branch=release/1.4.1-rc
 convertmpas_branch=release/1.2.0
 EXP=GFS
-RES=1024002
-YYYYMMDDHHi=2024010100
-FCST=24
+RES=655362 #1024002
+YYYYMMDDHHi=2018111500 #2019010100 #2024010100
+FCST=48
 #----------------------------------------------------------------------
 
 
@@ -53,8 +53,12 @@ FCST=24
 #time ${SCRIPTS}/1.install_monan.bash ${github_link} ${monan_branch} ${convertmpas_branch}
 #exit
 
-# STEP 2: Executing the pre-processing fase. Preparing all CI/CC files needed:
+# STEP 2: Executing the pre-processing fase. Preparing all CI/CC files needed (fixed SST):
 #time ${SCRIPTS}/2.pre_processing.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} 
+#exit
+
+# STEP 2.1: Preparing updated-SST files:
+#time ${SCRIPTS}/2.pre_processing.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} on
 #exit
 
 # STEP 3: Executing the Model run:
