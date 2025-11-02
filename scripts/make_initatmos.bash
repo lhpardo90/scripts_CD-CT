@@ -128,7 +128,7 @@ if [ "${USE_SST:-off}" = "on" ]; then
   sst_missing=0
 
   for ((t=${start_epoch}; t<=${final_epoch}; t+=fg_interval)); do
-    tag=$(date -d "@${t}" +"%Y-%m-%d_%H")
+    tag=$(date -d "@${t}" +"%Y-%m-%d_00")
     src="${SSTSRC}/SST:${tag}"
     dst="${DIRRUN}/SST:${tag}"
     if [ -e "${src}" ]; then
