@@ -162,7 +162,7 @@ fi
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.output ${DIRRUN}
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE} ${DIRRUN}/stream_list.atmosphere.diagnostics
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.surface ${DIRRUN}
-
+cp -f ${SCRIPTS}/namelists/GF_ConvPar_nml ${DIRRUN}
 
 # Lianet -- If config_sst_update = true in namelist, copy the sfc_update file to DIRRUN
 if grep -Eqi '^[[:space:]]*config_sst_update[[:space:]]*=[[:space:]]*(\.?true\.?)' "${DIRRUN}/namelist.atmosphere"; then
