@@ -26,7 +26,7 @@ module list
 # Put your directories:
 export DIR_SCRIPTS=$(dirname $(dirname $(pwd)))
 export DIR_DADOS=$(dirname $(dirname $(pwd)))
-export MONANDIR=/mnt/beegfs/lianet.hernandez/scripts_CD-CT/sources/MONAN-Model_lianet-paulos-fix-for-2018-input-data
+export MONANDIR=/mnt/beegfs/lianet.hernandez/scripts_CD-CT/sources/MONAN-Model_add-ndrop-to-convection-namelist
 
 # Submiting variables:
 
