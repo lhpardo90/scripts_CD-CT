@@ -54,6 +54,10 @@ spechum
 divergence
 vorticity
 ke
+rqvcuten
+rqccuten
+rqicuten
+rthcuten
 uReconstructZonal
 uReconstructMeridional
 ertel_pv
