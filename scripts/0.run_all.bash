@@ -46,7 +46,7 @@ convertmpas_branch=release/1.2.0
 EXP=GFS
 RES=655362 #Options: 40962=120km;163842=60km;655362=30Km;1024002=24km;2621442=15Km;5898242=10Km
 YYYYMMDDHHi=2018111500 #2019010100 #2024010100
-FCST=48
+FCST=1104 #48
 #----------------------------------------------------------------------
 
 # STEP 1: Installing and compiling the A-MONAN model and utility programs:
