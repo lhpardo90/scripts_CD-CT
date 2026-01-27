@@ -41,7 +41,7 @@ EXECS=${DIRHOMED}/execs;               mkdir -p ${EXECS}
 #github_link="https://github.com/monanadmin/MONAN-Model.git"
 github_link="https://github.com/lhpardo90/MONAN-Model.git"
 #monan_branch=release/1.4.1-rc
-monan_branch=lianet-paulos-fix-for-2018-input-data
+monan_branch=add-ndrop-to-convection-namelist
 convertmpas_branch=release/1.2.0
 EXP=GFS
 RES=655362 #Options: 40962=120km;163842=60km;655362=30Km;1024002=24km;2621442=15Km;5898242=10Km

@@ -59,7 +59,7 @@ export SYSTEM_KEYC="${SCHEDULER_SYSTEM}_${HOSTNAME}_${COMPILER}"
 # Put your directories:
 export DIR_SCRIPTS=$(dirname $(dirname $(pwd)))
 export DIR_DADOS=${DIR_SCRIPTS}
-export MONANDIR=/mnt/beegfs/lianet.hernandez/scripts_CD-CT/sources/MONAN-Model_lianet-paulos-fix-for-2018-input-data
+export MONANDIR=/mnt/beegfs/lianet.hernandez/scripts_CD-CT/sources/MONAN-Model_add-ndrop-to-convection-namelist
 
 # Load your system setenv:
 . ${DIR_SCRIPTS}/scripts_CD-CT/scripts/stools/setenv_${SYSTEM_KEYC}.bash
