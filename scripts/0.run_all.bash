@@ -41,7 +41,7 @@ EXECS=${DIRHOMED}/execs;               mkdir -p ${EXECS}
 #github_link="https://github.com/monanadmin/MONAN-Model.git"
 github_link="https://github.com/lhpardo90/MONAN-Model.git"
 #monan_branch=release/1.4.1-rc
-monan_branch=add-ndrop-to-convection-namelist
+monan_branch=sync-with-original
 convertmpas_branch=release/1.2.0
 EXP=GFS
 RES=655362 #Options: 40962=120km;163842=60km;655362=30Km;1024002=24km;2621442=15Km;5898242=10Km
@@ -51,7 +51,7 @@ FCST=1104 #48
 
 # STEP 1: Installing and compiling the A-MONAN model and utility programs:
 time ${SCRIPTS}/1.install_monan.bash ${github_link} ${monan_branch} ${convertmpas_branch}
-#exit
+exit
 
 # STEP 2: Executing the pre-processing fase. Preparing all CI/CC files needed:
 #time ${SCRIPTS}/2.pre_processing.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} 
