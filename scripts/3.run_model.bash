@@ -89,7 +89,7 @@ printf -v t_strout "%02d:%02d:%02d" "$h" "$m" "$s"
 # From now on, CONFI_LEN_DISP becames cte = 0.0, pickin up this value from static file.
 
 # Calculating default parameters for different resolutions
-if [ $RES -eq 165536 ]; then  #30Km
+if [ $RES -eq 655362 ]; then  #30Km
    CONFIG_DT=150.0
    CONFIG_CONV_INTERVAL="00:15:00"
 elif [ $RES -eq 1024002 ]; then  #24Km
