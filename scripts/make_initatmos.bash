@@ -179,7 +179,7 @@ else
    echo "#!/bin/bash -x" > "${DIRRUN}/initatmos.bash" 
 fi
 
-cat << EOF > "${DIRRUN}/initatmos.bash"
+cat << EOF >> "${DIRRUN}/initatmos.bash"
 
 export executable=init_atmosphere_model
 
