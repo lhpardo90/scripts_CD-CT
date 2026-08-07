@@ -46,7 +46,7 @@ echo ""
 
 # Standart directories variables:---------------------------------------
 DIRHOMES=$(dirname "$(pwd)");          mkdir -p ${DIRHOMES}  
-DIRHOMED=${DIR_DADOS}/scripts_CD-CT;   mkdir -p ${DIRHOMED}  
+DIRHOMED=${DIR_DADOS}/${DIR_SUITE};   mkdir -p ${DIRHOMED}
 export SCRIPTS=${DIRHOMES}/scripts;    mkdir -p ${SCRIPTS}
 DATAIN=${DIRHOMED}/datain;             mkdir -p ${DATAIN}
 DATAOUT=${DIRHOMED}/dataout;           mkdir -p ${DATAOUT}

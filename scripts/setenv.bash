@@ -70,10 +70,10 @@ export SYSTEM_KEYC="${SCHEDULER_SYSTEM}_${HOSTNAME}_${COMPILER}"
 export DIR_SCRIPTS=$(dirname $(dirname $(pwd)))
 export DIR_DADOS=${DIR_SCRIPTS}
 export MONANDIR=$MONANDIR
-
+export DIR_SUITE=scripts_CD-CT-regional
 
 # Load your system setenv:
-. ${DIR_SCRIPTS}/scripts_CD-CT/scripts/stools/setenv_${SYSTEM_KEYC}.bash
+. ${DIR_SCRIPTS}/${DIR_SUITE}/scripts/stools/setenv_${SYSTEM_KEYC}.bash
 
 #module list
 #echo ""
