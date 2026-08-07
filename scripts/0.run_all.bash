@@ -36,19 +36,21 @@ SOURCES=${DIRHOMES}/sources;           mkdir -p ${SOURCES}
 EXECS=${DIRHOMED}/execs;               mkdir -p ${EXECS}
 #----------------------------------------------------------------------
 
-
 # Input variables:-----------------------------------------------------
-#github_link="https://github.com/monanadmin/MONAN-Model.git"
-github_link="https://github.com/lhpardo90/MONAN-Model.git"
-#monan_branch=release/1.4.1-rc
-monan_branch=sync-with-original
-convertmpas_branch=release/1.2.0
-EXP=GFS
-RES=655362 #Options: 40962=120km;163842=60km;655362=30Km;1024002=24km;2621442=15Km;5898242=10Km
-YYYYMMDDHHi=2018111500 #2019010100 #2024010100
-FCST=1104
 
-#----------------------------------------------------------------------
+LOCAL_RUN_CONFIG="${SCRIPTS}/run_config.local.bash"
+
+if [ ! -f "${LOCAL_RUN_CONFIG}" ]; then
+    echo "ERROR: Run configuration file not found:"
+    echo "  ${LOCAL_RUN_CONFIG}"
+    echo ""
+    echo "Create it from the template:"
+    echo "  cp ${SCRIPTS}/run_config.local.bash.TEMPLATE ${LOCAL_RUN_CONFIG}"
+    exit 1
+fi
+
+. "${LOCAL_RUN_CONFIG}"
+
 # ----------------------------------------------------------------------
 # Select workflow step
 #

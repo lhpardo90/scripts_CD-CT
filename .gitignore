@@ -7,3 +7,4 @@ scripts/namelists/GF_ConvPar_nml
 sources
 run.*
 scripts/setenv.local.bash
+scripts/run_config.local.bash
