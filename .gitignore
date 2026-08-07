@@ -1,5 +1,6 @@
 datain/fixed
 datain/WPS_GEOG
+datain/SST
 dataout
 execs
 .venv
