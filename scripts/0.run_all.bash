@@ -46,25 +46,95 @@ convertmpas_branch=release/1.2.0
 EXP=GFS
 RES=655362 #Options: 40962=120km;163842=60km;655362=30Km;1024002=24km;2621442=15Km;5898242=10Km
 YYYYMMDDHHi=2018111500 #2019010100 #2024010100
-FCST=1104 #48
+FCST=1104
+
 #----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# Select workflow step
+#
+# Usage:
+#   ./0.run_all.bash install
+#   ./0.run_all.bash pre
+#   ./0.run_all.bash pre-sst
+#   ./0.run_all.bash model
+#   ./0.run_all.bash post
+#   ./0.run_all.bash all
+#   ./0.run_all.bash all-sst
+# ----------------------------------------------------------------------
 
-# STEP 1: Installing and compiling the A-MONAN model and utility programs:
-time ${SCRIPTS}/1.install_monan.bash ${github_link} ${monan_branch} ${convertmpas_branch}
-exit
+STEP=${1:-all}
 
-# STEP 2: Executing the pre-processing fase. Preparing all CI/CC files needed:
-#time ${SCRIPTS}/2.pre_processing.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} 
-#exit
+case "${STEP}" in
 
-# STEP 2.1: Preparing updated-SST files:
-#time ${SCRIPTS}/2.pre_processing.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} on
-#exit
+    install)
+        echo "Running STEP 1: install and compile MONAN"
+        time ${SCRIPTS}/1.install_monan.bash \
+            ${github_link} ${monan_branch} ${convertmpas_branch}
+        ;;
 
-# STEP 3: Executing the Model run:
-time ${SCRIPTS}/3.run_model.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} 
-#exit
+    pre)
+        echo "Running STEP 2: preprocessing"
+        time ${SCRIPTS}/2.pre_processing.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+        ;;
 
-# STEP 4: Executing the Post of Model run:
-time ${SCRIPTS}/4.run_post.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} 
-#exit
+    pre-sst)
+        echo "Running STEP 2.1: preprocessing with updated SST"
+        time ${SCRIPTS}/2.pre_processing.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} on
+        ;;
+
+    model)
+        echo "Running STEP 3: model"
+        time ${SCRIPTS}/3.run_model.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+        ;;
+
+    post)
+        echo "Running STEP 4: post-processing"
+        time ${SCRIPTS}/4.run_post.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+        ;;
+
+    all)
+        echo "Running complete workflow without updated SST"
+
+        time ${SCRIPTS}/1.install_monan.bash \
+            ${github_link} ${monan_branch} ${convertmpas_branch}
+
+        time ${SCRIPTS}/2.pre_processing.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+
+        time ${SCRIPTS}/3.run_model.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+
+        time ${SCRIPTS}/4.run_post.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+        ;;
+
+    all-sst)
+        echo "Running complete workflow with updated SST"
+
+        time ${SCRIPTS}/1.install_monan.bash \
+            ${github_link} ${monan_branch} ${convertmpas_branch}
+
+        time ${SCRIPTS}/2.pre_processing.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+
+        time ${SCRIPTS}/2.pre_processing.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} on
+
+        time ${SCRIPTS}/3.run_model.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+
+        time ${SCRIPTS}/4.run_post.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+        ;;
+
+    *)
+        echo "Unknown step: ${STEP}"
+        echo "Usage: $0 {install|pre|pre-sst|model|post|all|all-sst}"
+        exit 1
+        ;;
+
+esac
