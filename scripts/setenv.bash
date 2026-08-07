@@ -59,7 +59,14 @@ export SYSTEM_KEYC="${SCHEDULER_SYSTEM}_${HOSTNAME}_${COMPILER}"
 # Put your directories:
 export DIR_SCRIPTS=$(dirname $(dirname $(pwd)))
 export DIR_DADOS=${DIR_SCRIPTS}
-export MONANDIR=/mnt/beegfs/lianet.hernandez/scripts_CD-CT/sources/MONAN-Model_sync-with-original
+export MONANDIR=${DIR_SCRIPTS}/scripts_CD-CT/sources/MONAN-Model
+
+# Optional local override (modify MONANDIR in setenv.local.bash to use a different MONAN repo version)
+LOCAL_SETENV="${DIR_SCRIPTS}/scripts_CD-CT/scripts/setenv.local.bash"
+
+if [ -f "${LOCAL_SETENV}" ]; then
+    . "${LOCAL_SETENV}"
+fi
 
 # Load your system setenv:
 . ${DIR_SCRIPTS}/scripts_CD-CT/scripts/stools/setenv_${SYSTEM_KEYC}.bash

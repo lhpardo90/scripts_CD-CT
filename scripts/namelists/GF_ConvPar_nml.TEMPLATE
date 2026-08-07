@@ -80,7 +80,7 @@
   c0_mid            = 1.5e-3, 
   n_cldrop          = 200.,
   Nc_mult_ocean     = 1.,
-  Nc_mult_land      = 24.,
+  Nc_mult_land      = 3.,
 
 !   c0_deep    = 2.e-3,
 !   c0_mid     = 2.e-3, 

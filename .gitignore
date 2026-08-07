@@ -3,6 +3,7 @@ datain/WPS_GEOG
 dataout
 execs
 .venv
-scripts/GF_ConvPar_nml
+scripts/namelists/GF_ConvPar_nml
 sources
 run.*
+scripts/setenv.local.bash
