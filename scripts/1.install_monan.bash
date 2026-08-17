@@ -221,7 +221,6 @@ make -j 8 ${MAKE_TARG} CORE=atmosphere OPENMP=true USE_PIO2=false PRECISION=sing
 mv ${MONANDIR}/atmosphere_model ${EXECS}
 mv ${MONANDIR}/build_tables ${EXECS}
 cp ${MONANDIR}/VERSION.txt ${EXECS}/MONAN-VERSION.txt
-cp ${MONANDIR}/GF_ConvPar_nml ${SCRIPTS}
 make clean CORE=atmosphere
 
 MAKE_OUT_FILE="make_\${DATE_TIME_NOW}_.output.init_atmosphere"

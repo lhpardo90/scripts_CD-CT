@@ -166,7 +166,7 @@ then
 fi
 
 
-files_needed=("${SCRIPTS}/namelists/stream_list.atmosphere.output" "${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE}" "${SCRIPTS}/namelists/stream_list.atmosphere.surface" "${EXECS}/atmosphere_model" "${DATAIN}/fixed/x1.${RES}.static.nc" "${DATAIN}/fixed/x1.${RES}.ugwp_oro_data.nc" "${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores}" "${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.init.nc" "${DATAIN}/fixed/Vtable.${EXP}" "${DATAIN}/fixed/ugwp_limb_tau.nc")
+files_needed=("${SCRIPTS}/namelists/stream_list.atmosphere.output" "${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE}" "${SCRIPTS}/namelists/stream_list.atmosphere.surface" "${SCRIPTS}/namelists/GF_ConvPar_nml${VARTABLE}" "${EXECS}/atmosphere_model" "${DATAIN}/fixed/x1.${RES}.static.nc" "${DATAIN}/fixed/x1.${RES}.ugwp_oro_data.nc" "${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores}" "${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.init.nc" "${DATAIN}/fixed/Vtable.${EXP}" "${DATAIN}/fixed/ugwp_limb_tau.nc")
 for file in "${files_needed[@]}"
 do
   if [ ! -s "${file}" ]
@@ -204,6 +204,7 @@ cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.output ${DIRRUN}
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE} ${DIRRUN}/stream_list.atmosphere.diagnostics
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.diag_ugwp${VARTABLE} ${DIRRUN}/stream_list.atmosphere.diag_ugwp
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.surface ${DIRRUN}
+cp -f ${SCRIPTS}/namelists/GF_ConvPar_nml${VARTABLE} ${DIRRUN}/GF_ConvPar_nml
 cp -f ${SCRIPTS}/setenv.bash ${DIRRUN}
 
 
@@ -267,6 +268,7 @@ cp -f ${MONANDIR}/README.md ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/
 mv log.atmosphere.* ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
 mv namelist.atmosphere ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
 mv stream* ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
+mv GF_ConvPar_nml ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
 EOF0
 chmod a+x ${DIRRUN}/model.bash
 
