@@ -90,37 +90,48 @@ printf -v t_strout "%02d:%02d:%02d" "$h" "$m" "$s"
 if [[ "$RES" == "40962" ]]; then      #120Km
    CONFIG_DT=600.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=120000
 elif [[ "$RES" == "163842" ]]; then   #60Km
    CONFIG_DT=300.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=60000
 elif [[ "$RES" == "655362" ]]; then   #30Km
    CONFIG_DT=150.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=30000
 elif [[ "$RES" == "1024002" ]]; then  #24Km
    CONFIG_DT=150.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=24000
 elif [[ "$RES" == "2621442" ]]; then  #15Km
    CONFIG_DT=90.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=15000
 elif [[ "$RES" == "5898242" ]]; then  #10Km
    CONFIG_DT=60.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=10000
 elif [[ "$RES" == "23592962" ]]; then  #5km
    CONFIG_DT=30.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=5000
 elif [[ "$RES" == "65536002" ]]; then  #3Km
    CONFIG_DT=18.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=3000
 # regional mesh
 elif [[ "$RES" == "655362.REG.AMS_CAR" ]]; then #30 km (AMS + Caribe)
    CONFIG_DT=150.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=30000
 elif [[ "$RES" == "5898242.REG.AMS_CAR" ]]; then #10 km (AMS + Caribe)
    CONFIG_DT=60.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=10000
 elif [[ "$RES" == "23592962.REG.AMS_CAR" ]]; then #5 km (AMS + Caribe)
    CONFIG_DT=30.0
    CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=5000
 else
     echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
     echo -e  "${RED}==>${NC} [${0}] Simulation parameters for resolution $RES have not been set! Edit them in '3.run_model.bash'.\n"
@@ -194,7 +205,7 @@ fi
 if [[ ${EXP} == "GFS" ||  ${EXP} == "ERA" ]]
 then
    sed -e "s,#LABELI#,${start_date},g;s,#FCSTS#,${DD_HHMMSS_forecast},g;s,#RES#,${RES},g;
-s,#CONFIG_DT#,${CONFIG_DT},g;s,#CONFIG_LEN_DISP#,${CONFIG_LEN_DISP},g;s,#CONFIG_CONV_INTERVAL#,${CONFIG_CONV_INTERVAL},g;s,#APPLY_LBCS#,${APPLY_LBCS},g" \
+s,#CONFIG_DT#,${CONFIG_DT},g;s,#CONFIG_LEN_DISP#,${CONFIG_LEN_DISP},g;s,#CONFIG_CONV_INTERVAL#,${CONFIG_CONV_INTERVAL},g;s,#APPLY_LBCS#,${APPLY_LBCS},g;s,#CONFIG_LEN_DISP#,${CONFIG_LEN_DISP},g" \
    ${SCRIPTS}/namelists/namelist.atmosphere.TEMPLATE > ${DIRRUN}/namelist.atmosphere
    
    sed -e "s,#RES#,${RES},g;s,#RORG#,${RORG},g;s,#LBCINT#,${LBCINT},g;s,#CIORIG#,${EXP},g;s,#LABELI#,${YYYYMMDDHHi},g;s,#NLEV#,${NLEV},g" \
