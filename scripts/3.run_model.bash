@@ -121,6 +121,14 @@ elif [[ "$RES" == "23592962.REG.AMS_CAR" ]]; then #5 km (AMS + Caribe)
    CONFIG_DT=30.0
    CONFIG_CONV_INTERVAL="00:15:00"
    CONFIG_LEN_DISP=5000
+elif [[ "$RES" == "ellipse_5km_nowcasting" ]]; then #5 km (Bacia do La Plata+Sudeste+Nordeste)
+   CONFIG_DT=30.0
+   CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=5000
+elif [[ "$RES" == "ellipse_3km_nowcasting" ]]; then #3 km (Bacia do La Plata+Sudeste+Nordeste)
+   CONFIG_DT=18.0
+   CONFIG_CONV_INTERVAL="00:15:00"
+   CONFIG_LEN_DISP=3000
 else
     echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
     echo -e  "${RED}==>${NC} [${0}] Simulation parameters for resolution $RES have not been set! Edit them in '3.run_model.bash'.\n"

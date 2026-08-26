@@ -168,6 +168,24 @@ elif [[ "$RES" == "23592962.REG.AMS_CAR" ]]; then #5 km (AMS + Caribe)
    ENDLAT=42.0
    STARTLON=254.0
    ENDLON=344.0
+elif [[ "$RES" == "ellipse_5km_nowcasting" ]]; then # 5 km nowcasting grid
+   NLAT=921     # 46/0.05 + 1
+   NLON=1001    # 50/0.05 + 1
+   STARTLAT=-42.0
+   ENDLAT=4.0
+   STARTLON=281.0
+   ENDLON=331.0
+elif [[ "$RES" == "ellipse_3km_nowcasting" ]]; then # 3 km nowcasting grid
+   NLAT=1504    # 45.09/0.03 + 1
+   NLON=1601    # 48/0.03 + 1
+   STARTLAT=-42.0
+   ENDLAT=3.09
+   STARTLON=282.0
+   ENDLON=330.0
+else
+   echo -e "\n${RED}==>${NC} ***** ATTENTION *****\n"
+   echo -e "${RED}==>${NC} [${0}] Post-processing parameters for resolution ${RES} have not been set.\n"
+   exit -1
 fi
 #-------------------------------------------------------
 
