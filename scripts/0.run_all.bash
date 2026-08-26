@@ -6,13 +6,22 @@ echo -e "\033[1;32m==>\033[0m Moduling environment for MONAN model...\n"
 . setenv.bash
 
 # Standart directories variables:---------------------------------------
-DIRHOMES=${DIR_SCRIPTS}/${DIR_SUITE}; mkdir -p ${DIRHOMES}
-DIRHOMED=${DIR_DADOS}/${DIR_SUITE};   mkdir -p ${DIRHOMED}
-SCRIPTS=${DIRHOMES}/scripts;           mkdir -p ${SCRIPTS}
-DATAIN=${DIRHOMED}/datain;             mkdir -p ${DATAIN}
-DATAOUT=${DIRHOMED}/dataout;           mkdir -p ${DATAOUT}
-SOURCES=${DIRHOMES}/sources;           mkdir -p ${SOURCES}
-EXECS=${DIRHOMED}/execs;               mkdir -p ${EXECS}
+export DIRHOMES=${DIR_SCRIPTS}/${DIR_SUITE}
+export DIRHOMED=${DIR_DADOS}/${DIR_SUITE}
+export SCRIPTS=${DIRHOMES}/scripts
+export DATAIN=${DIRHOMED}/datain
+export DATAOUT=${DIRHOMED}/dataout
+export SOURCES=${DIRHOMES}/sources
+export EXECS=${DIRHOMED}/execs
+
+mkdir -p \
+    "${DIRHOMES}" \
+    "${DIRHOMED}" \
+    "${SCRIPTS}" \
+    "${DATAIN}" \
+    "${DATAOUT}" \
+    "${SOURCES}" \
+    "${EXECS}"
 #----------------------------------------------------------------------
 
 # Input variables:-----------------------------------------------------

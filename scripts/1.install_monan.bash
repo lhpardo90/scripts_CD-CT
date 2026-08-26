@@ -65,25 +65,15 @@ then
    exit
 fi
 
+if [ -z "${SCRIPTS:-}" ] || [ -z "${DIRHOMED:-}" ]; then
+    echo "ERROR: Environment not initialized."
+    echo "Run this workflow through 0.run_all.bash."
+    exit 1
+fi
 
-# Set environment variables exports:
-echo ""
-echo -e "\033[1;32m==>\033[0m Moduling environment for MONAN model...\n"
-. setenv.bash
 echo ""
 echo "---- Installing the Model ----"
 echo ""
-
-# Standart directories variables:---------------------------------------
-DIRHOMES=${DIR_SCRIPTS}/${DIR_SUITE};  mkdir -p ${DIRHOMES}
-DIRHOMED=${DIR_DADOS}/${DIR_SUITE};    mkdir -p ${DIRHOMED}
-SCRIPTS=${DIRHOMES}/scripts;            mkdir -p ${SCRIPTS}
-DATAIN=${DIRHOMED}/datain;              mkdir -p ${DATAIN}
-DATAOUT=${DIRHOMED}/dataout;            mkdir -p ${DATAOUT}
-SOURCES=${DIRHOMES}/sources;            mkdir -p ${SOURCES}
-EXECS=${DIRHOMED}/execs;                mkdir -p ${EXECS}
-#----------------------------------------------------------------------
-
 
 # Input variables:-----------------------------------------------------
 github_link_MONAN=${1};   #github_link=https://github.com/monanadmin/MONAN-Model.git
@@ -98,14 +88,7 @@ echo "convert_mpas branch name in use: ${tag_or_branch_name_CONVERT_MPAS}"
 
 
 # Local variables:-----------------------------------------------------
-MONANDIR=${SOURCES}/MONAN-Model_${tag_or_branch_name_MONAN}
 CONVERT_MPAS_DIR=${SOURCES}/convert_mpas_${tag_or_branch_name_CONVERT_MPAS}
-
-#$(sed -i "s;DIR_SCRIPTS=.*$;DIR_SCRIPTS=$(dirname $(dirname $(pwd)));" setenv.bash)
-#$(sed -i "s;DIR_DADOS=.*$;DIR_DADOS=$(dirname $(dirname $(pwd)));" setenv.bash)
-$(sed -i "s;MONANDIR=.*$;MONANDIR=$MONANDIR;" setenv.bash)
-chmod 755 ${SCRIPTS}/setenv.bash
-. ${SCRIPTS}/setenv.bash
 
 #----------------------------------------------------------------------
 

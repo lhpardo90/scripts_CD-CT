@@ -34,26 +34,15 @@ then
    exit
 fi
 
-# Set environment variables exports:
-echo ""
-echo -e "\033[1;32m==>\033[0m Moduling environment for MONAN model...\n"
-. setenv.bash
+if [ -z "${SCRIPTS:-}" ] || [ -z "${DIRHOMED:-}" ]; then
+    echo "ERROR: Environment not initialized."
+    echo "Run this workflow through 0.run_all.bash."
+    exit 1
+fi
 
 echo ""
 echo "---- Run Model ----"
 echo ""
-
-
-# Standart directories variables:---------------------------------------
-DIRHOMES=${DIR_SCRIPTS}/${DIR_SUITE}; mkdir -p ${DIRHOMES}
-DIRHOMED=${DIR_DADOS}/${DIR_SUITE};   mkdir -p ${DIRHOMED}
-SCRIPTS=${DIRHOMES}/scripts;           mkdir -p ${SCRIPTS}
-DATAIN=${DIRHOMED}/datain;             mkdir -p ${DATAIN}
-DATAOUT=${DIRHOMED}/dataout;           mkdir -p ${DATAOUT}
-SOURCES=${DIRHOMES}/sources;           mkdir -p ${SOURCES}
-EXECS=${DIRHOMED}/execs;               mkdir -p ${EXECS}
-#----------------------------------------------------------------------
-
 
 # Input variables:--------------------------------------
 EXP=${1};         #EXP=GFS
