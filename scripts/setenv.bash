@@ -69,8 +69,20 @@ export SYSTEM_KEYC="${SCHEDULER_SYSTEM}_${HOSTNAME}_${COMPILER}"
 # Put your directories:
 export DIR_SCRIPTS=$(dirname $(dirname $(pwd)))
 export DIR_DADOS=${DIR_SCRIPTS}
-export MONANDIR=$MONANDIR
 export DIR_SUITE=scripts_CD-CT-regional
+export MONANDIR=${DIR_SCRIPTS}/${DIR_SUITE}/sources/MONAN-Model
+
+# Optional local override (modify MONANDIR in setenv.local.bash to use a different MONAN repo version)
+LOCAL_SETENV="${DIR_SCRIPTS}/${DIR_SUITE}/scripts/setenv.local.bash"
+
+if [ -f "${LOCAL_SETENV}" ]; then
+    echo "Loading local environment configuration: ${LOCAL_SETENV}"
+    . "${LOCAL_SETENV}"
+else
+    echo "No local environment configuration found; using default settings."
+fi
+
+echo "MONANDIR=${MONANDIR}"
 
 # Load your system setenv:
 . ${DIR_SCRIPTS}/${DIR_SUITE}/scripts/stools/setenv_${SYSTEM_KEYC}.bash

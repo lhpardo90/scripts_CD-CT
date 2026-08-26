@@ -5,3 +5,4 @@ execs
 .venv
 sources
 run.*
+scripts/setenv.local.bash
