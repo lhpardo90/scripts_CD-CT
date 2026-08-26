@@ -24,20 +24,67 @@ RES=655362                 # Options-Global: 40962=120km; 163842=60km; 655362=30
                            # Options-Regional: 655362.REG.AMS_CAR=30km; 5898242.REG.AMS_CAR=10km; 23592962.REG.AMS_CAR=5km
 YYYYMMDDHHi=2026080100     # Check the available dates for the initial and boundary conditions (regional), especially for ERA5 data.
 FCST=24
-#----------------------------------------------------------------------
 
-# STEP 1: Installing and compiling the A-MONAN model and utility programs:
-time ${SCRIPTS}/1.install_monan.bash ${github_link} ${monan_branch} ${convertmpas_branch}
-#exit
+# ----------------------------------------------------------------------
+# Select workflow step
+#
+# Usage:
+#   ./0.run_all.bash COMPILE
+#   ./0.run_all.bash PRE
+#   ./0.run_all.bash RUN
+#   ./0.run_all.bash POST
+#   ./0.run_all.bash ALL
+# ----------------------------------------------------------------------
 
-# STEP 2: Executing the pre-processing fase. Preparing all CI/CC files needed:
-time ${SCRIPTS}/2.pre_processing.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} 
-#exit
+STEP=${1:-ALL}
+STEP=${STEP^^}
 
-# STEP 3: Executing the Model run:
-time ${SCRIPTS}/3.run_model.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} 
-#exit
+case "${STEP}" in
 
-# STEP 4: Executing the Post of Model run:
-time ${SCRIPTS}/4.run_post.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST} 
-#exit
+    COMPILE)
+        echo "Running STEP 1: install and compile MONAN"
+        time ${SCRIPTS}/1.install_monan.bash \
+            ${github_link} ${monan_branch} ${convertmpas_branch}
+        ;;
+
+    PRE)
+        echo "Running STEP 2: preprocessing"
+        time ${SCRIPTS}/2.pre_processing.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+        ;;
+
+    RUN)
+        echo "Running STEP 3: model"
+        time ${SCRIPTS}/3.run_model.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+        ;;
+
+    POST)
+        echo "Running STEP 4: post-processing"
+        time ${SCRIPTS}/4.run_post.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+        ;;
+
+    ALL)
+        echo "Running complete workflow"
+
+        time ${SCRIPTS}/1.install_monan.bash \
+            ${github_link} ${monan_branch} ${convertmpas_branch}
+
+        time ${SCRIPTS}/2.pre_processing.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+
+        time ${SCRIPTS}/3.run_model.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+
+        time ${SCRIPTS}/4.run_post.bash \
+            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+        ;;
+
+    *)
+        echo "Unknown workflow step: ${STEP}"
+        echo "Usage: $0 {ALL|COMPILE|PRE|RUN|POST}"
+        exit 1
+        ;;
+
+esac
