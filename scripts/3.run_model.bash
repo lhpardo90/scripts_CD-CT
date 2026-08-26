@@ -59,12 +59,11 @@ cores=${MODEL_ncores}
 hhi=${YYYYMMDDHHi:8:2}
 NLEV=55
 CONFIG_CONV_INTERVAL="00:30:00"
-VARTABLE=".OPER"
 export DIRRUN=${DIRHOMED}/run.${YYYYMMDDHHi}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
 #------------------------------------------------------------------------------------
 
 # Variables for flex outpout interval from streams.atmosphere------------------------
-t_strout=$(cat ${SCRIPTS}/namelists/streams.atmosphere.TEMPLATE | sed -n '/<stream name="diagnostics"/,/<\/stream>/s/.*output_interval="\([^"]*\)".*/\1/p')
+t_strout=$(cat ${SCRIPTS}/namelists/streams.atmosphere${VARTABLE} | sed -n '/<stream name="diagnostics"/,/<\/stream>/s/.*output_interval="\([^"]*\)".*/\1/p')
 t_stroutsec=$(echo ${t_strout} | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}')
 t_strouthor=$(echo "scale=4; (${t_stroutsec}/60)/60" | bc)
 #------------------------------------------------------------------------------------
@@ -173,8 +172,7 @@ then
    rm -fr x1.${RES}.tar.gz
 fi
 
-
-files_needed=("${SCRIPTS}/namelists/stream_list.atmosphere.output" "${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE}" "${SCRIPTS}/namelists/stream_list.atmosphere.surface" "${SCRIPTS}/namelists/GF_ConvPar_nml${VARTABLE}" "${EXECS}/atmosphere_model" "${DATAIN}/fixed/x1.${RES}.static.nc" "${DATAIN}/fixed/x1.${RES}.ugwp_oro_data.nc" "${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores}" "${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.init.nc" "${DATAIN}/fixed/Vtable.${EXP}" "${DATAIN}/fixed/ugwp_limb_tau.nc")
+files_needed=("${SCRIPTS}/namelists/stream_list.atmosphere.output${VARTABLE}" "${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE}" "${SCRIPTS}/namelists/stream_list.atmosphere.surface" "${SCRIPTS}/namelists/GF_ConvPar_nml${VARTABLE}" "${EXECS}/atmosphere_model" "${DATAIN}/fixed/x1.${RES}.static.nc" "${DATAIN}/fixed/x1.${RES}.ugwp_oro_data.nc" "${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores}" "${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.init.nc" "${DATAIN}/fixed/Vtable.${EXP}" "${DATAIN}/fixed/ugwp_limb_tau.nc")
 for file in "${files_needed[@]}"
 do
   if [ ! -s "${file}" ]
@@ -203,12 +201,12 @@ if [[ ${EXP} == "GFS" ||  ${EXP} == "ERA" ]]
 then
    sed -e "s,#LABELI#,${start_date},g;s,#FCSTS#,${DD_HHMMSS_forecast},g;s,#RES#,${RES},g;
 s,#CONFIG_DT#,${CONFIG_DT},g;s,#CONFIG_LEN_DISP#,${CONFIG_LEN_DISP},g;s,#CONFIG_CONV_INTERVAL#,${CONFIG_CONV_INTERVAL},g;s,#APPLY_LBCS#,${APPLY_LBCS},g;s,#CONFIG_LEN_DISP#,${CONFIG_LEN_DISP},g" \
-   ${SCRIPTS}/namelists/namelist.atmosphere.TEMPLATE > ${DIRRUN}/namelist.atmosphere
+   ${SCRIPTS}/namelists/namelist.atmosphere${VARTABLE} > ${DIRRUN}/namelist.atmosphere
    
    sed -e "s,#RES#,${RES},g;s,#RORG#,${RORG},g;s,#LBCINT#,${LBCINT},g;s,#CIORIG#,${EXP},g;s,#LABELI#,${YYYYMMDDHHi},g;s,#NLEV#,${NLEV},g" \
-   ${SCRIPTS}/namelists/streams.atmosphere.TEMPLATE > ${DIRRUN}/streams.atmosphere
+   ${SCRIPTS}/namelists/streams.atmosphere${VARTABLE} > ${DIRRUN}/streams.atmosphere
 fi
-cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.output ${DIRRUN}
+cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.output${VARTABLE} ${DIRRUN}/stream_list.atmosphere.output
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE} ${DIRRUN}/stream_list.atmosphere.diagnostics
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.diag_ugwp${VARTABLE} ${DIRRUN}/stream_list.atmosphere.diag_ugwp
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.surface ${DIRRUN}
@@ -268,6 +266,7 @@ echo "MONAN time taken by run in seconds is " \$wallsecs
 # move dataout, clean up and remove files/links
 #
 mv MONAN_DIAG_* ${DATAOUT}/${YYYYMMDDHHi}/Model
+mv MONAN_HIST_* ${DATAOUT}/${YYYYMMDDHHi}/Model
 cp -f ${EXECS}/MONAN-VERSION.txt ${DATAOUT}/${YYYYMMDDHHi}/Model
 cp -f ${EXECS}/MONAN-VERSION.txt ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/
 cp -f ${DIRHOMES}/VERSION.txt ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/SCRIPTSCDCT-VERSION.txt

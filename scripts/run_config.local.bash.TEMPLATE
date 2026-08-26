@@ -20,3 +20,6 @@ YYYYMMDDHHi=2024010100
 
 # Forecast length in hours
 FCST=48
+
+# Namelist/configuration variant
+VARTABLE=".OPER"

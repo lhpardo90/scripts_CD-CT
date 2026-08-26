@@ -39,6 +39,17 @@ fi
 
 . "${LOCAL_RUN_CONFIG}"
 
+case "${VARTABLE}" in
+    .OPER|.MICROPHYSICS)
+        ;;
+    *)
+        echo "ERROR: Unsupported VARTABLE: ${VARTABLE}"
+        exit 1
+        ;;
+esac
+
+export VARTABLE
+
 # ----------------------------------------------------------------------
 # Select workflow step
 #
