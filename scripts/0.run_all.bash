@@ -16,14 +16,19 @@ EXECS=${DIRHOMED}/execs;               mkdir -p ${EXECS}
 #----------------------------------------------------------------------
 
 # Input variables:-----------------------------------------------------
-github_link="https://github.com/monanadmin/MONAN-Model.git"   # Switch to your fork when you need to make changes or develop the model.
-monan_branch=2.0.0-rc
-convertmpas_branch=1.2.0
-EXP=GFS                    # Options: GFS or ERA
-RES=655362                 # Options-Global: 40962=120km; 163842=60km; 655362=30Km; 1024002=24km; 2621442=15Km; 5898242=10Km
-                           # Options-Regional: 655362.REG.AMS_CAR=30km; 5898242.REG.AMS_CAR=10km; 23592962.REG.AMS_CAR=5km
-YYYYMMDDHHi=2026080100     # Check the available dates for the initial and boundary conditions (regional), especially for ERA5 data.
-FCST=24
+
+LOCAL_RUN_CONFIG="${SCRIPTS}/run_config.local.bash"
+
+if [ ! -f "${LOCAL_RUN_CONFIG}" ]; then
+    echo "ERROR: Run configuration file not found:"
+    echo "  ${LOCAL_RUN_CONFIG}"
+    echo ""
+    echo "Create it from the template:"
+    echo "  cp ${SCRIPTS}/run_config.local.bash.TEMPLATE ${LOCAL_RUN_CONFIG}"
+    exit 1
+fi
+
+. "${LOCAL_RUN_CONFIG}"
 
 # ----------------------------------------------------------------------
 # Select workflow step

@@ -1,0 +1,22 @@
+# MONAN source
+github_link="https://github.com/monanadmin/MONAN-Model.git"
+monan_branch=2.0.0-rc
+convertmpas_branch=1.2.0
+
+# Experiment
+EXP=GFS
+
+# Grid resolution
+# 40962   = 120 km
+# 163842  = 60 km
+# 655362  = 30 km
+# 1024002 = 24 km
+# 2621442 = 15 km
+# 5898242 = 10 km
+RES=655362
+
+# Initial date: YYYYMMDDHH
+YYYYMMDDHHi=2024010100
+
+# Forecast length in hours
+FCST=48

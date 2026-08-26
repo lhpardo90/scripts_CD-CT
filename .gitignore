@@ -6,3 +6,4 @@ execs
 sources
 run.*
 scripts/setenv.local.bash
+scripts/run_config.local.bash
