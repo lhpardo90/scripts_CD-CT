@@ -205,7 +205,6 @@ cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE} ${DIRRU
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.diag_ugwp${VARTABLE} ${DIRRUN}/stream_list.atmosphere.diag_ugwp
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.surface ${DIRRUN}
 cp -f ${SCRIPTS}/namelists/GF_ConvPar_nml${VARTABLE} ${DIRRUN}/GF_ConvPar_nml
-cp -f ${SCRIPTS}/setenv.bash ${DIRRUN}
 
 
 chmod 755 ${DIRRUN}

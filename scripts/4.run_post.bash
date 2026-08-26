@@ -202,7 +202,6 @@ for ii in $(seq 1 ${nfiles})
 do
    i=$(printf "%04d" ${ii})
    mkdir -p ${DIRRUN}/dir.${i}
-   cp -f ${SCRIPTS}/setenv.bash ${DIRRUN}/dir.${i}
    cp -f ${SCRIPTS}/namelists/include_fields.diag${VARTABLE}  ${DIRRUN}/dir.${i}/include_fields.diag${VARTABLE}
    cp -f ${DIRRUN}/dir.${i}/include_fields.diag${VARTABLE} ${DIRRUN}/dir.${i}/include_fields
    sed -e "s,#NISOLEV#,${NLEV},g;s,#NMODELLEV#,${N_MODEL_LEV},g" \
