@@ -5,6 +5,13 @@ echo ""
 echo -e "\033[1;32m==>\033[0m Moduling environment for MONAN model...\n"
 . setenv.bash
 
+if ! declare -F how_many_nodes >/dev/null; then
+    echo "ERROR: setenv.bash did not define how_many_nodes." >&2
+    exit 1
+fi
+
+export -f how_many_nodes
+
 # Standart directories variables:---------------------------------------
 export DIRHOMES=${DIR_SCRIPTS}/${DIR_SUITE}
 export DIRHOMED=${DIR_DADOS}/${DIR_SUITE}
@@ -50,6 +57,42 @@ esac
 
 export VARTABLE
 
+
+# Confir run mode:-----------------------------------------------------
+case "${MODERUN:-}" in
+   R)
+      MODE_DESCRIPTION="REGIONAL"
+      ;;
+   G)
+      MODE_DESCRIPTION="GLOBAL"
+      ;;
+   *)
+      echo "ERROR: MODERUN must be R or G." >&2
+      echo "Check MODERUN in setenv.bash or setenv.local.bash." >&2
+      exit 1
+      ;;
+esac
+
+echo ""
+echo "======================================================"
+echo " ATTENTION: MODERUN=${MODERUN} (${MODE_DESCRIPTION})"
+echo " Check setenv.bash and setenv.local.bash if incorrect."
+echo "======================================================"
+echo ""
+
+read -r -p "Continue with MODERUN=${MODERUN}? [y/N] " answer
+
+case "${answer}" in
+   y|Y|yes|YES)
+      ;;
+   *)
+      echo "Execution cancelled."
+      exit 1
+      ;;
+esac
+#----------------------------------------------------------------------
+
+
 # ----------------------------------------------------------------------
 # Select workflow step
 #
@@ -87,7 +130,7 @@ case "${STEP}" in
     POST)
         echo "Running STEP 4: post-processing"
         time ${SCRIPTS}/4.run_post.bash \
-            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+            ${EXP} ${RES} ${RUN_ID} ${FCST}
         ;;
 
     ALL)
@@ -103,7 +146,7 @@ case "${STEP}" in
             ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
 
         time ${SCRIPTS}/4.run_post.bash \
-            ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+            ${EXP} ${RES} ${RUN_ID} ${FCST}
         ;;
 
     *)

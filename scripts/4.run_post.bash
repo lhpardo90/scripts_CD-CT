@@ -1,6 +1,8 @@
 #!/bin/bash 
 umask 022
 
+set -Eeuo pipefail
+
 #-----------------------------------------------------------------------------#
 # !SCRIPT: run_post
 #
@@ -48,17 +50,25 @@ echo ""
 # Input variables:--------------------------------------
 EXP=${1};         #EXP=GFS
 RES=${2};         #RES=1024002
-YYYYMMDDHHi=${3}; #YYYYMMDDHHi=2024042000
+RUN_ID=${3}                    # 2026080100_suffix
+YYYYMMDDHHi=${RUN_ID:0:10}     # 2026080100
 FCST=${4};        #FCST=40
 #-------------------------------------------------------
-mkdir -p ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
+
+if [[ ! "${RUN_ID}" =~ ^[0-9]{10}(_[A-Za-z0-9._-]+)?$ ]]; then
+    echo "ERROR: LABELI must start with YYYYMMDDHH and may have a suffix." >&2
+    echo "Example: 2026080100 or 2026080100_test" >&2
+    exit 1
+fi
+
+mkdir -p ${DATAOUT}/${RUN_ID}/Post/logs
 
 
 # Local variables--------------------------------------
 START_DATE_YYYYMMDD="${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}"
 START_HH="${YYYYMMDDHHi:8:2}"
 maxpostpernode=30    # <------ qtde max de convert_mpas por no!
-export DIRRUN=${DIRHOMED}/run.${YYYYMMDDHHi}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
+export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
 N_MODEL_LEV=55
 NLEV=18
 #-------------------------------------------------------
@@ -189,7 +199,7 @@ fi
 #-------------------------------------------------------
 
 
-files_needed=("${SCRIPTS}/namelists/include_fields.diag${VARTABLE}" "${SCRIPTS}/namelists/convert_mpas.nml" "${SCRIPTS}/namelists/target_domain.TEMPLATE" "${EXECS}/convert_mpas" "${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.init.nc")
+files_needed=("${SCRIPTS}/namelists/include_fields.diag${VARTABLE}" "${SCRIPTS}/namelists/convert_mpas.nml" "${SCRIPTS}/namelists/target_domain.TEMPLATE" "${EXECS}/convert_mpas" "${DATAOUT}/${RUN_ID}/Pre/x1.${RES}.init.nc")
 for file in "${files_needed[@]}"
 do
   if [ ! -s "${file}" ]
@@ -203,7 +213,7 @@ done
 
 # Captura quantos arquivos do modelo tiverem para serem pos-processados e
 # quando nos serao necessarios para executar ${maxpostpernode} convert_mpas por no:
-#nfiles=$(ls -l ${DATAOUT}/${YYYYMMDDHHi}/Model/MONAN*nc | wc -l)
+#nfiles=$(ls -l ${DATAOUT}/${RUN_ID}/Model/MONAN*nc | wc -l)
 # from streams.atmosphere${VARTABLE} in diagnostics the output_interval is flexible
 output_interval=${t_strouthor}
 #nfiles=FCST/output_interval + 1(time zero file)
@@ -253,8 +263,8 @@ do
       s,#NTHREADS#,${POST_nthreads},g;
       s,#PARTITION#,${POST_QUEUE},g;
       s,#WALLTIME#,${POST_walltime},g;
-      s,#OUTPUTJOB#,${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node.${node}.o,g;
-      s,#ERRORJOB#,${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node.${node}.e,g" \
+      s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.${node}.o,g;
+      s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.${node}.e,g" \
       ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > \
       ${DIRRUN}/PostAtmos_node.${node}.sh
    else
@@ -264,7 +274,10 @@ do
 cat << EOSH >> ${DIRRUN}/PostAtmos_node.${node}.sh 
 
 cd ${DIRRUN}
+
+set +eu
 . ${SCRIPTS}/setenv.bash
+set -Eeuo pipefail
 
 if [ ${SCHEDULER_SYSTEM} == "SLURM" ]; then
    echo "-- SLURM_JOB_ID: \$SLURM_JOB_ID"
@@ -280,11 +293,14 @@ for ii in \$(seq  ${inicio} ${fim})
 do
    i=\$(printf "%04d" \${ii})
    echo "Preparing post files \${i}"
-   cp -f ${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.init.nc ${DIRRUN}/dir.\${i} &
+   cp -f ${DATAOUT}/${RUN_ID}/Pre/x1.${RES}.init.nc ${DIRRUN}/dir.\${i} &
    cp -f ${EXECS}/convert_mpas ${DIRRUN}/dir.\${i} &
 done
 
 wait
+
+pids=()
+post_indices=()
 
 for ii in \$(seq  ${inicio} ${fim})
 do
@@ -295,15 +311,41 @@ do
    hh=${YYYYMMDDHHi:8:2}
    currentdate=\$(date -d "${YYYYMMDDHHi:0:8} \${hh}:00:00 \$(echo "(\${i}-1)*${t_strout:0:2}" | bc) hours \$(echo "(\${i}-1)*${t_strout:3:2}" | bc) minutes \$(echo "(\${i}-1)*${t_strout:6:2}" | bc) seconds" +"%Y%m%d%H.%M.%S")
    diag_name=MONAN_DIAG_${RORG}_MOD_${EXP}_${YYYYMMDDHHi}_\${currentdate}.x${RES}L${N_MODEL_LEV}.nc
+
+   model_file=${DATAOUT}/${RUN_ID}/Model/\${diag_name}
+
+   if [[ ! -s "\${model_file}" ]]; then
+      echo "ERROR: Missing or empty input: \${model_file}" >&2
+      exit 1
+   fi
+
+   rm -f latlon.nc convert_mpas.output
+
    echo ""
-   echo "executando convert mpas"
-   chmod 755 ${DATAOUT}/${YYYYMMDDHHi}/Model/*
-   time  ./convert_mpas x1.${RES}.init.nc ${DATAOUT}/${YYYYMMDDHHi}/Model/\${diag_name}  > convert_mpas.output & 
-   echo "./convert_mpas x1.${RES}.init.nc ${DATAOUT}/${YYYYMMDDHHi}/Model/\${diag_name} > convert_mpas.output"
+   echo "Executing convert_mpas for \${diag_name}"
+   chmod 755 ${DATAOUT}/${RUN_ID}/Model/*
+   ./convert_mpas x1.${RES}.init.nc "\${model_file}"  > convert_mpas.output 2>&1 &
+
+   pids[\${ii}]=\$!
+   post_indices+=("\${ii}")
 done
 
 # necessario aguardar as rodadas em background
-wait
+conversion_failed=0
+
+for ii in "\${post_indices[@]}"
+do
+   if ! wait "\${pids[\${ii}]}"; then
+      i=\$(printf "%04d" "\${ii}")
+      echo "ERROR: convert_mpas failed for post \${i}" >&2
+      echo "       Log: ${DIRRUN}/dir.\${i}/convert_mpas.output" >&2
+      conversion_failed=1
+   fi
+done
+
+if (( conversion_failed != 0 )); then
+   exit 1
+fi
 
 for ii in \$(seq  ${inicio} ${fim})
 do
@@ -313,9 +355,20 @@ do
    diag_name_post=MONAN_DIAG_${RORG}_POS_${EXP}_${YYYYMMDDHHi}_\${currentdate}.x${RES}L${N_MODEL_LEV}.nc
 
    cd ${DIRRUN}/dir.\${i}
+
+   if [[ ! -s latlon.nc ]]; then
+      echo "ERROR: Missing or empty latlon.nc in \$PWD" >&2
+      exit 1
+   fi
+
+   if ! ncdump -k latlon.nc >/dev/null 2>&1; then
+      echo "ERROR: latlon.nc is not a readable NetCDF file in \$PWD" >&2
+      exit 1
+   fi
+
    chmod 755 *
-   cp latlon.nc  ${DATAOUT}/${YYYYMMDDHHi}/Post/\${diag_name_post} >> convert_mpas.output & 
-   echo "cp latlon.nc  ${DATAOUT}/${YYYYMMDDHHi}/Post/\${diag_name_post}"  >> convert_mpas.output
+   cp latlon.nc  ${DATAOUT}/${RUN_ID}/Post/\${diag_name_post} >> convert_mpas.output &
+   echo "cp latlon.nc  ${DATAOUT}/${RUN_ID}/Post/\${diag_name_post}"  >> convert_mpas.output
    
 done
  
@@ -325,8 +378,8 @@ EOSH
   
    chmod a+x ${DIRRUN}/PostAtmos_node.${node}.sh
    chmod 755 ${DIRRUN}/*
-   cp -f ${DIRRUN}/PostAtmos_node.${node}.sh ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
-   chmod 755 ${DATAOUT}/${YYYYMMDDHHi}/Post/*
+   cp -f ${DIRRUN}/PostAtmos_node.${node}.sh ${DATAOUT}/${RUN_ID}/Post/logs
+   chmod 755 ${DATAOUT}/${RUN_ID}/Post/*
    case "${SCHEDULER_SYSTEM}" in
       SLURM)
          echo "Sbatch PostAtmos_node.${node}.sh"
@@ -378,8 +431,8 @@ then
    s,#NTHREADS#,${POST_nthreads},g;
    s,#PARTITION#,${POST_QUEUE},g;
    s,#WALLTIME#,${POST_walltime},g;
-   s,#OUTPUTJOB#,${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node.${node}.o,g;
-   s,#ERRORJOB#,${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node.${node}.e,g" \
+   s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.${node}.o,g;
+   s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.${node}.e,g" \
    ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > \
    ${DIRRUN}/PostAtmos_node.${node}.sh
 else
@@ -398,15 +451,15 @@ elif [ ${SCHEDULER_SYSTEM} == "PBS" ]; then
 fi
 
 # Saving important files to the logs directory:
-cp -f ${EXECS}/CONVMPAS-VERSION.txt ${DATAOUT}/${YYYYMMDDHHi}/Post
-cp -f ${EXECS}/CONVMPAS-VERSION.txt ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
-cp -f ${DIRRUN}/dir.0001/target_domain ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
-cp -f ${DIRRUN}/dir.0001/convert_mpas.nml ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
-cp -f ${DIRRUN}/dir.0001/include_fields ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
-cp -f ${DIRRUN}/dir.0001/convert_mpas.output ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
-cp -f ${DIRRUN}/PostAtmos_node.*.sh ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
-cp -f ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/* ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
-cp -f ${DATAOUT}/${YYYYMMDDHHi}/Model/MONAN-VERSION.txt ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
+cp -f ${EXECS}/CONVMPAS-VERSION.txt ${DATAOUT}/${RUN_ID}/Post
+cp -f ${EXECS}/CONVMPAS-VERSION.txt ${DATAOUT}/${RUN_ID}/Post/logs
+cp -f ${DIRRUN}/dir.0001/target_domain ${DATAOUT}/${RUN_ID}/Post/logs
+cp -f ${DIRRUN}/dir.0001/convert_mpas.nml ${DATAOUT}/${RUN_ID}/Post/logs
+cp -f ${DIRRUN}/dir.0001/include_fields ${DATAOUT}/${RUN_ID}/Post/logs
+cp -f ${DIRRUN}/dir.0001/convert_mpas.output ${DATAOUT}/${RUN_ID}/Post/logs
+cp -f ${DIRRUN}/PostAtmos_node.*.sh ${DATAOUT}/${RUN_ID}/Post/logs
+cp -f ${DATAOUT}/${RUN_ID}/Model/logs/* ${DATAOUT}/${RUN_ID}/Post/logs
+cp -f ${DATAOUT}/${RUN_ID}/Model/MONAN-VERSION.txt ${DATAOUT}/${RUN_ID}/Post/logs
 
 
 cd ${DIRRUN}/..
@@ -437,8 +490,8 @@ esac
 
 #CR: passar este scriptpara dentro do script PostAtmos_node.0.sh, submetido.
 cd ${SCRIPTS}
-chmod 755 ${DATAOUT}/${YYYYMMDDHHi}/Post/*
-time ${SCRIPTS}/make_template.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${FCST}
+chmod 755 ${DATAOUT}/${RUN_ID}/Post/*
+time ${SCRIPTS}/make_template.bash ${EXP} ${RES} ${RUN_ID} ${FCST}
 
 for ((n=0 ; n<total_nodes ; n++)) 
 do
@@ -446,10 +499,10 @@ do
    if [ ${SCHEDULER_SYSTEM} = "SLURM" ]; then
       : # Slurm já gera JOBID na submissão.
    elif [ ${SCHEDULER_SYSTEM} = "PBS" ]; then
-      JOBID=$(sed -n '4p' ${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node."${n}".o | awk '{print $3}' | sed "s/.pbs-ha//g")
-      mv ${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node."${n}".o ${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node."${n}".o.${JOBID}
-      mv ${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node."${n}".e ${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node."${n}".e.${JOBID}
+      JOBID=$(sed -n '4p' ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".o | awk '{print $3}' | sed "s/.pbs-ha//g")
+      mv ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".o ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".o.${JOBID}
+      mv ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".e ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".e.${JOBID}
 fi
 done
-chmod a+r ${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node.*.o.*
-chmod a+r ${DATAOUT}/${YYYYMMDDHHi}/Post/logs/PostAtmos_node.*.e.*
+chmod a+r ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.*.o.*
+chmod a+r ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.*.e.*

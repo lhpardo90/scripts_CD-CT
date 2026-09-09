@@ -1,5 +1,8 @@
 #!/bin/bash 
 umask 022
+
+set -Eeuo pipefail
+
 #-----------------------------------------------------------------------------#
 # !SCRIPT: run_post
 #
@@ -58,17 +61,25 @@ EXECS=${DIRHOMED}/execs;               mkdir -p ${EXECS}
 # Input variables:--------------------------------------
 EXP=${1};         #EXP=GFS
 RES=${2};         #RES=1024002
-YYYYMMDDHHi=${3}; #YYYYMMDDHHi=2024042000
+RUN_ID=${3}
+YYYYMMDDHHi=${RUN_ID:0:10}
 FCST=${4};        #FCST=40
 #-------------------------------------------------------
-mkdir -p ${DATAOUT}/${YYYYMMDDHHi}/Post/logs
+
+if [[ ! "${RUN_ID}" =~ ^[0-9]{10}(_[A-Za-z0-9._-]+)?$ ]]; then
+    echo "ERROR: LABELI must start with YYYYMMDDHH and may have a suffix." >&2
+    echo "Example: 2026080100 or 2026080100_test" >&2
+    exit 1
+fi
+
+mkdir -p ${DATAOUT}/${RUN_ID}/Post/logs
 
 
 # Local variables--------------------------------------
 START_DATE_YYYYMMDD="${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}"
 START_HH="${YYYYMMDDHHi:8:2}"
 maxpostpernode=20    # <------ qtde max de convert_mpas por no!
-export DIRRUN=${DIRHOMED}/run.${YYYYMMDDHHi}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
+export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
 N_MODEL_LEV=55
 #-------------------------------------------------------
 
@@ -115,10 +126,10 @@ diag_name_templ=MONAN_DIAG_${RORG}_POS_${EXP}_${YYYYMMDDHHi}_%y4%m2%d2%h2.%n2.00
 rm -fr ${DIRRUN}/qctlinfo.gs
 cp -f ${SCRIPTS}/setenv.bash ${DIRRUN}
 
-chmod 755 ${DATAOUT}/${YYYYMMDDHHi}/Post/*
+chmod 755 ${DATAOUT}/${RUN_ID}/Post/*
 cat > ${DIRRUN}/qctlinfo.gs <<EOGS
 'reinit'
-'sdfopen ${DATAOUT}/${YYYYMMDDHHi}/Post/${diag_name_post}' 
+'sdfopen ${DATAOUT}/${RUN_ID}/Post/${diag_name_post}'
 
 'q ctlinfo'
 say result
@@ -143,5 +154,5 @@ sed -i "/tdef/c\tdef ${nfiles} linear ${timectl} ${t_stroutmin}mn" ${DIRRUN}/qct
 sed -i "/dset/c\dset ^${diag_name_templ}" ${DIRRUN}/qctlinfo.ctl
 
 chmod 755 ${DIRRUN}/*
-mv ${DIRRUN}/qctlinfo.ctl ${DATAOUT}/${YYYYMMDDHHi}/Post/${diag_name_post}.template.ctl
+mv ${DIRRUN}/qctlinfo.ctl ${DATAOUT}/${RUN_ID}/Post/${diag_name_post}.template.ctl
 rm -fr ${DIRRUN}
