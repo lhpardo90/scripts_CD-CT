@@ -485,7 +485,12 @@ esac
 #CR: passar este scriptpara dentro do script PostAtmos_node.0.sh, submetido.
 cd ${SCRIPTS}
 chmod 755 ${DATAOUT}/${RUN_ID}/Post/*
-time ${SCRIPTS}/make_template.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${RUN_ID} ${FCST}
+if ! time "${SCRIPTS}/make_template.bash" \
+   "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+then
+   echo "ERROR: Postprocessing failed." >&2
+   exit 1
+fi
 
 for ((n=0 ; n<total_nodes ; n++)) 
 do

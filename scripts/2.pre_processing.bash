@@ -163,7 +163,12 @@ if [[ ${EXP} == "GFS" || ${EXP} == "ERA" ]]; then
    if [ ! -s ${DATAIN}/fixed/x1.${RES}.static.nc ]
    then
       echo -e "${GREEN}==>${NC} Creating static.bash for submiting init_atmosphere to create x1.${RES}.static.nc...\n"
-      time ./make_static.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${RUN_ID} ${FCST}
+      if ! time ./make_static.bash \
+         "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+      then
+         echo "ERROR: Static generation failed." >&2
+         exit 1
+      fi
    else
       echo -e "${GREEN}==>${NC} File x1.${RES}.static.nc already exist in ${DATAIN}/fixed.\n"
    fi
@@ -180,11 +185,21 @@ fi
 if [[ ${EXP} == "GFS" ]]
 then
    echo -e  "${GREEN}==>${NC} Submitting Degrib for GFS data...\n"
-   time ./make_degrib_GFS.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${RUN_ID} ${FCST}
+   if ! time ./make_degrib_GFS.bash \
+      "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+   then
+      echo "ERROR: GFS degrib failed." >&2
+      exit 1
+   fi
 elif [[ ${EXP} == "ERA" ]]
 then
    echo -e  "${GREEN}==>${NC} Submitting Degrib for ERA data...\n"
-   time ./make_degrib_ERA5.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${RUN_ID} ${FCST}
+   if ! time ./make_degrib_ERA5.bash \
+      "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+   then
+      echo "ERROR: ERA5 degrib failed." >&2
+      exit 1
+   fi
 else
    echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
    echo -e  "${RED}==>${NC} Degrib phase fails! Please select EXP=GFS or EXP=ERA.\n"
@@ -196,7 +211,12 @@ fi
 # Init Atmosphere phase:------------------------------------------------------------
 if [[ ${EXP} == "GFS" || ${EXP} == "ERA" ]]; then
    echo -e  "${GREEN}==>${NC} Submitting Init Atmosphere for real case...\n"
-   time ./make_initatmos.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${RUN_ID} ${FCST}
+   if ! time ./make_initatmos.bash \
+      "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+   then
+      echo "ERROR: Init Atmosphere failed." >&2
+      exit 1
+   fi
 else
    echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
    echo -e  "${RED}==>${NC} Init Atmosphere phase fails! Please select EXP=GFS or EXP=ERA.\n"
@@ -208,7 +228,12 @@ fi
 # LBCs phase:------------------------------------------------------------
 if [[ $MODERUN == "R" ]]; then
    echo -e  "${GREEN}==>${NC} Regional simulation: submitting Init Atmosphere to generate lateral boundary conditions...\n"
-   time ./make_lbcs.bash ${EXP} ${RES} ${YYYYMMDDHHi} ${RUN_ID} ${FCST}
+   if ! time ./make_lbcs.bash \
+      "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+   then
+      echo "ERROR: LBC generation failed." >&2
+      exit 1
+   fi
 elif [[ $MODERUN == "G" ]]; then
    echo -e  "${GREEN}==>${NC} Global simulation: no need for lateral boundary conditions.\n"
 else
