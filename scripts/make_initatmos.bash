@@ -1,22 +1,23 @@
 #!/bin/bash 
 umask 022
 
-if [ $# -ne 4 ]
+if [ $# -ne 5 ]
 then
    echo ""
    echo "Instructions: execute the command below"
    echo ""
-   echo "${0} EXP RESOLUTION LABELI FCST"
+   echo "${0} EXP RESOLUTION LABELI RUN_ID FCST"
    echo ""
    echo "EXP         :: Initial or lateral boundary condition dataset (GFS or ERA)"
    echo "RESOLUTION  :: Number of horizontal grid cells (global) or regional mesh identifier (e.g., 1024002 for the ~24 km mesh)"
    echo "LABELI      :: Forecast initialization date and time (YYYYMMDDHH), e.g., 2026080100"
+   echo "RUN_ID      :: Output directory name (must start with YYYYMMDDHH)"
    echo "FCST        :: Forecast length in hours (e.g., 24, 36, 48, etc.)"
    echo ""
-   echo "Example of a 24-hour forecast:"
-   echo "${0} GFS 1024002 2026080100 24"
+   echo "Example for a 24-hour forecast:"
+   echo "${0} GFS 1024002 2026080100 2026080100_CTRL 24"
    echo ""
-   exit
+   exit 1
 fi
 
 # Set environment variables exports:
@@ -43,7 +44,8 @@ EXECS=${DIRHOMED}/execs;               mkdir -p ${EXECS}
 EXP=${1};         #EXP=GFS
 RES=${2};         #RES=1024002
 YYYYMMDDHHi=${3}; #YYYYMMDDHHi=2024012000
-FCST=${4};        #FCST=24
+RUN_ID=${4};      #RUN_ID=2024012000_CTRL
+FCST=${5};        #FCST=24
 #-------------------------------------------------------
 
 
@@ -51,9 +53,9 @@ FCST=${4};        #FCST=24
 start_date=${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}_${YYYYMMDDHHi:8:2}:00:00
 GEODATA=${DATAIN}/WPS_GEOG
 cores=${INITATMOS_ncores}
-export DIRRUN=${DIRHOMED}/run.${YYYYMMDDHHi}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
+export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
 #-------------------------------------------------------
-mkdir -p ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs
+mkdir -p ${DATAOUT}/${RUN_ID}/Pre/logs
 
 if [ ! -s ${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores} ]
 then
@@ -72,7 +74,7 @@ then
 fi
 
 
-files_needed=("${SCRIPTS}/namelists/namelist.init_atmosphere.TEMPLATE" "${SCRIPTS}/namelists/streams.init_atmosphere.TEMPLATE" "${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores}" "${DATAIN}/fixed/x1.${RES}.static.nc" "${DATAIN}/fixed/x1.${RES}.ugwp_oro_data.nc" "${DATAOUT}/${YYYYMMDDHHi}/Pre/${EXP}:${start_date:0:13}" "${EXECS}/init_atmosphere_model")
+files_needed=("${SCRIPTS}/namelists/namelist.init_atmosphere.TEMPLATE" "${SCRIPTS}/namelists/streams.init_atmosphere.TEMPLATE" "${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores}" "${DATAIN}/fixed/x1.${RES}.static.nc" "${DATAIN}/fixed/x1.${RES}.ugwp_oro_data.nc" "${DATAOUT}/${RUN_ID}/Pre/${EXP}:${start_date:0:13}" "${EXECS}/init_atmosphere_model")
 for file in "${files_needed[@]}"
 do
   if [ ! -s "${file}" ]
@@ -98,12 +100,12 @@ sed -e "s,#RES#,${RES},g" \
 cp -f ${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores} ${DIRRUN}
 cp -f ${DATAIN}/fixed/x1.${RES}.static.nc ${DIRRUN}
 cp -f ${DATAIN}/fixed/QNWFA_QNIFA_SIGMA_MONTHLY.dat ${DIRRUN}
-cp -f ${DATAOUT}/${YYYYMMDDHHi}/Pre/${EXP}\:${start_date:0:13} ${DIRRUN}
+cp -f ${DATAOUT}/${RUN_ID}/Pre/${EXP}\:${start_date:0:13} ${DIRRUN}
 cp -f ${EXECS}/init_atmosphere_model ${DIRRUN}
 cp -f ${SCRIPTS}/setenv.bash ${DIRRUN}
 
 chmod 755 ${DIRRUN}/*
-chmod 755 ${DATAOUT}/${YYYYMMDDHHi}/Pre/*
+chmod 755 ${DATAOUT}/${RUN_ID}/Pre/*
 
 rm -f ${DIRRUN}/initatmos.bash 
 
@@ -117,8 +119,8 @@ then
    s,#NTHREADS#,${INITATMOS_nthreads},g;
    s,#PARTITION#,${INITATMOS_QUEUE},g;
    s,#WALLTIME#,${INITATMOS_walltime},g;
-   s,#OUTPUTJOB#,${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/initatmos.bash.o,g;
-   s,#ERRORJOB#,${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/initatmos.bash.e,g" \
+   s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/initatmos.bash.o,g;
+   s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/initatmos.bash.e,g" \
    ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > ${DIRRUN}/initatmos.bash 
 else
    echo "#!/bin/bash " > ${DIRRUN}/initatmos.bash 
@@ -152,10 +154,10 @@ end_secs=\`date +"%s"\`
 let wallsecs=\$end_secs-\$beg_secs
 echo "INITATMOS time taken by run in seconds is " \$wallsecs
 
-mv ${DIRRUN}/log.init_atmosphere.0000.out ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/log.init_atmosphere.0000.x1.${RES}.init.nc.${YYYYMMDDHHi}.out
-mv ${DIRRUN}/namelist.init_atmosphere ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs
-mv ${DIRRUN}/streams.init_atmosphere ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs
-mv ${DIRRUN}/x1.${RES}.init.nc ${DATAOUT}/${YYYYMMDDHHi}/Pre
+mv ${DIRRUN}/log.init_atmosphere.0000.out ${DATAOUT}/${RUN_ID}/Pre/logs/log.init_atmosphere.0000.x1.${RES}.init.nc.${RUN_ID}.out
+mv ${DIRRUN}/namelist.init_atmosphere ${DATAOUT}/${RUN_ID}/Pre/logs
+mv ${DIRRUN}/streams.init_atmosphere ${DATAOUT}/${RUN_ID}/Pre/logs
+mv ${DIRRUN}/x1.${RES}.init.nc ${DATAOUT}/${RUN_ID}/Pre
 
 EOF0
 
@@ -178,19 +180,19 @@ case "${SCHEDULER_SYSTEM}" in
 #      ${DIRRUN}/initatmos.bash
 #      ;;
 esac
-mv ${DIRRUN}/initatmos.bash ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs
+mv ${DIRRUN}/initatmos.bash ${DATAOUT}/${RUN_ID}/Pre/logs
 
 if [ ${SCHEDULER_SYSTEM} = "SLURM" ]; then
    : # Slurm já gera JOBID na submissão.
 elif [ ${SCHEDULER_SYSTEM} = "PBS" ]; then
-   JOBID=$(sed -n '5p' ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/initatmos.bash.o | awk '{print $3}' | sed "s/.pbs-ha//g")
-   mv ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/initatmos.bash.o ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/initatmos.bash.o.${JOBID}
-   mv ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/initatmos.bash.e ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/initatmos.bash.e.${JOBID}
+   JOBID=$(sed -n '5p' ${DATAOUT}/${RUN_ID}/Pre/logs/initatmos.bash.o | awk '{print $3}' | sed "s/.pbs-ha//g")
+   mv ${DATAOUT}/${RUN_ID}/Pre/logs/initatmos.bash.o ${DATAOUT}/${RUN_ID}/Pre/logs/initatmos.bash.o.${JOBID}
+   mv ${DATAOUT}/${RUN_ID}/Pre/logs/initatmos.bash.e ${DATAOUT}/${RUN_ID}/Pre/logs/initatmos.bash.e.${JOBID}
 fi
-chmod a+r ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/initatmos.bash.o.*
-chmod a+r ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/initatmos.bash.e.*
+chmod a+r ${DATAOUT}/${RUN_ID}/Pre/logs/initatmos.bash.o.*
+chmod a+r ${DATAOUT}/${RUN_ID}/Pre/logs/initatmos.bash.e.*
 
-if [ ! -s ${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.init.nc ]
+if [ ! -s ${DATAOUT}/${RUN_ID}/Pre/x1.${RES}.init.nc ]
 then
   echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"	
   echo -e  "${RED}==>${NC} Init Atmosphere phase fails! Check logs at ${DATAOUT}/logs/initatmos.* .\n"
@@ -198,5 +200,5 @@ then
   exit -1
 fi
 
-chmod 775 ${DATAOUT}/${YYYYMMDDHHi}/Pre/*
+chmod 775 ${DATAOUT}/${RUN_ID}/Pre/*
 rm -fr ${DIRRUN}

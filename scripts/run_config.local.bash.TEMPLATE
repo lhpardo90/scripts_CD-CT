@@ -18,6 +18,9 @@ RES=655362
 # Initial date: YYYYMMDDHH
 YYYYMMDDHHi=2024010100
 
+# Output directory name
+RUN_ID=${YYYYMMDDHHi}
+
 # Forecast length in hours
 FCST=48
 

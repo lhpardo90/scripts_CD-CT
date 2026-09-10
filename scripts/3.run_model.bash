@@ -16,22 +16,23 @@ umask 022
 #
 #-----------------------------------------------------------------------------#
 
-if [ $# -ne 4 -a $# -ne 1 ]
+if [ $# -ne 5 ]
 then
    echo ""
    echo "Instructions: execute the command below"
    echo ""
-   echo "${0} EXP RESOLUTION LABELI FCST"
+   echo "${0} EXP RESOLUTION LABELI RUN_ID FCST"
    echo ""
    echo "EXP         :: Initial or lateral boundary condition dataset (GFS or ERA)"
    echo "RESOLUTION  :: Number of horizontal grid cells (global) or regional mesh identifier (e.g., 1024002 for the ~24 km mesh)"
    echo "LABELI      :: Forecast initialization date and time (YYYYMMDDHH), e.g., 2026080100"
+   echo "RUN_ID      :: Output directory name (must start with YYYYMMDDHH)"
    echo "FCST        :: Forecast length in hours (e.g., 24, 36, 48, etc.)"
    echo ""
-   echo "Example of a 24-hour forecast:"
-   echo "${0} GFS 1024002 2026080100 24"
+   echo "Example for a 24-hour forecast:"
+   echo "${0} GFS 1024002 2026080100 2026080100_CTRL 24"
    echo ""
-   exit
+   exit 1
 fi
 
 if [ -z "${SCRIPTS:-}" ] || [ -z "${DIRHOMED:-}" ]; then
@@ -48,10 +49,11 @@ echo ""
 EXP=${1};         #EXP=GFS
 RES=${2};         #RES=1024002
 YYYYMMDDHHi=${3}; #YYYYMMDDHHi=2024012000
-FCST=${4};        #FCST=6
+RUN_ID=${4};      #RUN_ID=2024012000_CTRL
+FCST=${5};        #FCST=24
 #-------------------------------------------------------
-mkdir -p ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
 
+mkdir -p ${DATAOUT}/${RUN_ID}/Model/logs
 
 # Local variables--------------------------------------
 start_date=${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}_${YYYYMMDDHHi:8:2}:00:00
@@ -59,7 +61,7 @@ cores=${MODEL_ncores}
 hhi=${YYYYMMDDHHi:8:2}
 NLEV=55
 CONFIG_CONV_INTERVAL="00:30:00"
-export DIRRUN=${DIRHOMED}/run.${YYYYMMDDHHi}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
+export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
 #------------------------------------------------------------------------------------
 
 # Variables for flex outpout interval from streams.atmosphere------------------------
@@ -172,7 +174,7 @@ then
    rm -fr x1.${RES}.tar.gz
 fi
 
-files_needed=("${SCRIPTS}/namelists/stream_list.atmosphere.output${VARTABLE}" "${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE}" "${SCRIPTS}/namelists/stream_list.atmosphere.surface" "${SCRIPTS}/namelists/GF_ConvPar_nml${VARTABLE}" "${EXECS}/atmosphere_model" "${DATAIN}/fixed/x1.${RES}.static.nc" "${DATAIN}/fixed/x1.${RES}.ugwp_oro_data.nc" "${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores}" "${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.init.nc" "${DATAIN}/fixed/Vtable.${EXP}" "${DATAIN}/fixed/ugwp_limb_tau.nc")
+files_needed=("${SCRIPTS}/namelists/stream_list.atmosphere.output${VARTABLE}" "${SCRIPTS}/namelists/stream_list.atmosphere.diagnostics${VARTABLE}" "${SCRIPTS}/namelists/stream_list.atmosphere.surface" "${SCRIPTS}/namelists/GF_ConvPar_nml${VARTABLE}" "${EXECS}/atmosphere_model" "${DATAIN}/fixed/x1.${RES}.static.nc" "${DATAIN}/fixed/x1.${RES}.ugwp_oro_data.nc" "${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores}" "${DATAOUT}/${RUN_ID}/Pre/x1.${RES}.init.nc" "${DATAIN}/fixed/Vtable.${EXP}" "${DATAIN}/fixed/ugwp_limb_tau.nc")
 for file in "${files_needed[@]}"
 do
   if [ ! -s "${file}" ]
@@ -190,12 +192,12 @@ cp -f ${DATAIN}/fixed/*DATA ${DIRRUN}
 cp -f ${DATAIN}/fixed/x1.${RES}.static.nc ${DIRRUN}
 cp -f ${DATAIN}/fixed/x1.${RES}.ugwp_oro_data.nc ${DIRRUN}
 cp -f ${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores} ${DIRRUN}
-cp -f ${DATAOUT}/${YYYYMMDDHHi}/Pre/x1.${RES}.init.nc ${DIRRUN}
+cp -f ${DATAOUT}/${RUN_ID}/Pre/x1.${RES}.init.nc ${DIRRUN}
 cp -f ${DATAIN}/fixed/Vtable.${EXP} ${DIRRUN}
 cp -f ${DATAIN}/fixed/ugwp_limb_tau.nc ${DIRRUN}
 
 if [[ $MODERUN == "R" ]]; then
-   cp -f ${DATAOUT}/${YYYYMMDDHHi}/Pre/lbc*.nc ${DIRRUN}
+   cp -f ${DATAOUT}/${RUN_ID}/Pre/lbc*.nc ${DIRRUN}
 fi
 if [[ ${EXP} == "GFS" ||  ${EXP} == "ERA" ]]
 then
@@ -227,8 +229,8 @@ then
    s,#NTHREADS#,${MODEL_nthreads},g;
    s,#PARTITION#,${MODEL_QUEUE},g;
    s,#WALLTIME#,${MODEL_walltime},g;
-   s,#OUTPUTJOB#,${DATAOUT}/${YYYYMMDDHHi}/Model/logs/model.bash.o,g;
-   s,#ERRORJOB#,${DATAOUT}/${YYYYMMDDHHi}/Model/logs/model.bash.e,g" \
+   s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Model/logs/model.bash.o,g;
+   s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Model/logs/model.bash.e,g" \
    ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > ${DIRRUN}/model.bash 
 else
    echo "#!/bin/bash " > ${DIRRUN}/model.bash 
@@ -265,16 +267,16 @@ echo "MONAN time taken by run in seconds is " \$wallsecs
 #
 # move dataout, clean up and remove files/links
 #
-mv MONAN_DIAG_* ${DATAOUT}/${YYYYMMDDHHi}/Model
-mv MONAN_HIST_* ${DATAOUT}/${YYYYMMDDHHi}/Model
-cp -f ${EXECS}/MONAN-VERSION.txt ${DATAOUT}/${YYYYMMDDHHi}/Model
-cp -f ${EXECS}/MONAN-VERSION.txt ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/
-cp -f ${DIRHOMES}/VERSION.txt ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/SCRIPTSCDCT-VERSION.txt
-cp -f ${MONANDIR}/README.md ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/
-mv log.atmosphere.* ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
-mv namelist.atmosphere ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
-mv stream* ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
-mv GF_ConvPar_nml ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
+mv MONAN_DIAG_* ${DATAOUT}/${RUN_ID}/Model
+mv MONAN_HIST_* ${DATAOUT}/${RUN_ID}/Model
+cp -f ${EXECS}/MONAN-VERSION.txt ${DATAOUT}/${RUN_ID}/Model
+cp -f ${EXECS}/MONAN-VERSION.txt ${DATAOUT}/${RUN_ID}/Model/logs/
+cp -f ${DIRHOMES}/VERSION.txt ${DATAOUT}/${RUN_ID}/Model/logs/SCRIPTSCDCT-VERSION.txt
+cp -f ${MONANDIR}/README.md ${DATAOUT}/${RUN_ID}/Model/logs/
+mv log.atmosphere.* ${DATAOUT}/${RUN_ID}/Model/logs
+mv namelist.atmosphere ${DATAOUT}/${RUN_ID}/Model/logs
+mv stream* ${DATAOUT}/${RUN_ID}/Model/logs
+mv GF_ConvPar_nml ${DATAOUT}/${RUN_ID}/Model/logs
 EOF0
 chmod a+x ${DIRRUN}/model.bash
 
@@ -300,17 +302,17 @@ case "${SCHEDULER_SYSTEM}" in
 #      ${DIRRUN}/model.bash
 #      ;;
 esac
-mv ${DIRRUN}/model.bash ${DATAOUT}/${YYYYMMDDHHi}/Model/logs
+mv ${DIRRUN}/model.bash ${DATAOUT}/${RUN_ID}/Model/logs
 
 if [ ${SCHEDULER_SYSTEM} = "SLURM" ]; then
    : # Slurm já gera JOBID na submissão.
 elif [ ${SCHEDULER_SYSTEM} = "PBS" ]; then
-   JOBID=$(sed -n '5p' ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/model.bash.o | awk '{print $3}' | sed "s/.pbs-ha//g")
-   mv ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/model.bash.o ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/model.bash.o.${JOBID}
-   mv ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/model.bash.e ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/model.bash.e.${JOBID}
+   JOBID=$(sed -n '5p' ${DATAOUT}/${RUN_ID}/Model/logs/model.bash.o | awk '{print $3}' | sed "s/.pbs-ha//g")
+   mv ${DATAOUT}/${RUN_ID}/Model/logs/model.bash.o ${DATAOUT}/${RUN_ID}/Model/logs/model.bash.o.${JOBID}
+   mv ${DATAOUT}/${RUN_ID}/Model/logs/model.bash.e ${DATAOUT}/${RUN_ID}/Model/logs/model.bash.e.${JOBID}
 fi
-chmod a+r ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/model.bash.o.*
-chmod a+r ${DATAOUT}/${YYYYMMDDHHi}/Model/logs/model.bash.e.*
+chmod a+r ${DATAOUT}/${RUN_ID}/Model/logs/model.bash.o.*
+chmod a+r ${DATAOUT}/${RUN_ID}/Model/logs/model.bash.e.*
 
 #-----Loop que verifica se os arquivos foram gerados corretamente (>0)-----
 output_interval=${t_strouthor}
@@ -322,10 +324,10 @@ do
    currentdate=$(date -d "${YYYYMMDDHHi:0:8} ${hh}:00:00 $(echo "(${i}-1)*${t_strout:0:2}" | bc) hours $(echo "(${i}-1)*${t_strout:3:2}" | bc) minutes $(echo "(${i}-1)*${t_strout:6:2}" | bc) seconds" +"%Y%m%d%H.%M.%S")
    file=MONAN_DIAG_${RORG}_MOD_${EXP}_${YYYYMMDDHHi}_${currentdate}.x${RES}L${NLEV}.nc
 
-   if [ ! -s ${DATAOUT}/${YYYYMMDDHHi}/Model/${file} ]
+   if [ ! -s ${DATAOUT}/${RUN_ID}/Model/${file} ]
    then
     echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"   
-    echo -e  "${RED}==>${NC} [${0}] At least the file ${DATAOUT}/${YYYYMMDDHHi}/Model/${file} was not generated. \n"
+    echo -e  "${RED}==>${NC} [${0}] At least the file ${DATAOUT}/${RUN_ID}/Model/${file} was not generated. \n"
     exit -1
    fi
 

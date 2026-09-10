@@ -62,7 +62,7 @@ then
    echo "M   :: MONAN tag or branch name of your personal fork. (will be used 'develop' if not informed)" 
    echo "C   :: Convert_MPAS tag from ${github_link_CONVERT_MPAS} (will be used 'develop' if not informed)"
    echo ""
-   exit
+   exit 1
 fi
 
 if [ -z "${SCRIPTS:-}" ] || [ -z "${DIRHOMED:-}" ]; then
@@ -126,7 +126,7 @@ then
 else
    echo ""
    echo -e "    ${RED}==>${NC} Please, make the right versions and try again."
-   exit
+   exit 1
    echo ""
 fi
 

@@ -1,22 +1,23 @@
 #!/bin/bash 
 umask 022
 
-if [ $# -ne 4 ]
+if [ $# -ne 5 ]
 then
    echo ""
    echo "Instructions: execute the command below"
    echo ""
-   echo "${0} EXP RESOLUTION LABELI FCST"
+   echo "${0} EXP RESOLUTION LABELI RUN_ID FCST"
    echo ""
    echo "EXP         :: Initial or lateral boundary condition dataset (GFS or ERA)"
    echo "RESOLUTION  :: Number of horizontal grid cells (global) or regional mesh identifier (e.g., 1024002 for the ~24 km mesh)"
    echo "LABELI      :: Forecast initialization date and time (YYYYMMDDHH), e.g., 2026080100"
+   echo "RUN_ID      :: Output directory name (must start with YYYYMMDDHH)"
    echo "FCST        :: Forecast length in hours (e.g., 24, 36, 48, etc.)"
    echo ""
-   echo "Example of a 24-hour forecast:"
-   echo "${0} GFS 1024002 2026080100 24"
+   echo "Example for a 24-hour forecast:"
+   echo "${0} GFS 1024002 2026080100 2026080100_CTRL 24"
    echo ""
-   exit
+   exit 1
 fi
 
 # Set environment variables exports:
@@ -42,7 +43,8 @@ EXECS=${DIRHOMED}/execs;                mkdir -p ${EXECS}
 EXP=${1};         #EXP=GFS
 RES=${2};         #RES=1024002
 YYYYMMDDHHi=${3}; #YYYYMMDDHHi=2024012000
-FCST=${4};        #FCST=24
+RUN_ID=${4};      #RUN_ID=2024012000_CTRL
+FCST=${5};        #FCST=24
 #-------------------------------------------------------
 
 # Local variables--------------------------------------
@@ -51,10 +53,10 @@ yyyymmddi=${YYYYMMDDHHi:0:8}
 hhi=${YYYYMMDDHHi:8:2}
 yyyymmddhhf=$(date +"%Y%m%d%H" -d "${yyyymmddi} ${hhi}:00 ${FCST} hours" )
 final_date=${yyyymmddhhf:0:4}-${yyyymmddhhf:4:2}-${yyyymmddhhf:6:2}_${yyyymmddhhf:8:2}:00:00
-export DIRRUN=${DIRHOMED}/run.${YYYYMMDDHHi}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
+export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
 #-------------------------------------------------------
-mkdir -p ${DATAIN}/${YYYYMMDDHHi}
-mkdir -p ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs
+mkdir -p ${DATAIN}/${RUN_ID}
+mkdir -p ${DATAOUT}/${RUN_ID}/Pre/logs
 
 if [ "$HOSTNAME" = "egeon" ]; then
     mkdir -p ${HOME}/local/lib64
@@ -113,7 +115,7 @@ if [[ $MODERUN == "R" ]]; then
    for ((hour=0; hour<=FCST; hour+=dt)); do
       hour_fmt=$(printf "%03d" "$hour")
       echo "Temporarily copying GFS data: gfs.t${YYYYMMDDHHi:8:2}z.pgrb2.0p25.f${hour_fmt}.${YYYYMMDDHHi}.grib2"
-      cp -f ${BNDDIR}/gfs.t${YYYYMMDDHHi:8:2}z.pgrb2.0p25.f${hour_fmt}.${YYYYMMDDHHi}.grib2 ${DATAIN}/${YYYYMMDDHHi}
+      cp -f ${BNDDIR}/gfs.t${YYYYMMDDHHi:8:2}z.pgrb2.0p25.f${hour_fmt}.${YYYYMMDDHHi}.grib2 ${DATAIN}/${RUN_ID}
    done
 
    if [ ${SCHEDULER_SYSTEM} != "GENERIC" ]
@@ -126,8 +128,8 @@ if [[ $MODERUN == "R" ]]; then
       s,#NTHREADS#,${DEGRIB_nthreads},g;
       s,#PARTITION#,${DEGRIB_QUEUE},g;
       s,#WALLTIME#,${DEGRIB_walltime},g;
-      s,#OUTPUTJOB#,${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.o,g;
-      s,#ERRORJOB#,${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.e,g" \
+      s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o,g;
+      s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e,g" \
       ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > ${DIRRUN}/degrib_${EXP}.bash
    else
       echo "#!/bin/bash " > ${DIRRUN}/degrib_${EXP}.bash
@@ -161,7 +163,7 @@ sed -e "s,#LABELI#,${start_date},g;s,#LABELF#,${final_date},g;s,#LBCINT#,${LBCIN
        ${DIRRUN}/namelist.wps.TEMPLATE > ${DIRRUN}/namelist.wps
 
 echo ""
-./link_grib.csh ${DATAIN}/${YYYYMMDDHHi}/gfs.*.grib2
+./link_grib.csh ${DATAIN}/${RUN_ID}/gfs.*.grib2
 
 chmod 755 *
 echo ""
@@ -185,10 +187,10 @@ fi
 #
 # clean up and remove links
 #
-   mv ungrib.log ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/ungrib.${start_date}.log
-   mv namelist.wps ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/namelist.${start_date}.wps
-   mv GFS* ${DATAOUT}/${YYYYMMDDHHi}/Pre
-   rm -fr ${DATAIN}/${YYYYMMDDHHi}
+   mv ungrib.log ${DATAOUT}/${RUN_ID}/Pre/logs/ungrib.${start_date}.log
+   mv namelist.wps ${DATAOUT}/${RUN_ID}/Pre/logs/namelist.${start_date}.wps
+   mv GFS* ${DATAOUT}/${RUN_ID}/Pre
+   rm -fr ${DATAIN}/${RUN_ID}
 
 echo "End of degrib Job"
 
@@ -196,7 +198,7 @@ EOF0
 
 elif [[ $MODERUN == "G" ]]; then
    echo "MODERUN=G. Degribbing GFS data only for initial conditions..."
-   cp -f ${BNDDIR}/gfs.t${YYYYMMDDHHi:8:2}z.pgrb2.0p25.f000.${YYYYMMDDHHi}.grib2 ${DATAIN}/${YYYYMMDDHHi}
+   cp -f ${BNDDIR}/gfs.t${YYYYMMDDHHi:8:2}z.pgrb2.0p25.f000.${YYYYMMDDHHi}.grib2 ${DATAIN}/${RUN_ID}
    
    if [ ${SCHEDULER_SYSTEM} != "GENERIC" ]
    then
@@ -208,8 +210,8 @@ elif [[ $MODERUN == "G" ]]; then
       s,#NTHREADS#,${DEGRIB_nthreads},g;
       s,#PARTITION#,${DEGRIB_QUEUE},g;
       s,#WALLTIME#,${DEGRIB_walltime},g;
-      s,#OUTPUTJOB#,${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.o,g;
-      s,#ERRORJOB#,${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.e,g" \
+      s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o,g;
+      s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e,g" \
       ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > ${DIRRUN}/degrib_${EXP}.bash 
    else
       echo "#!/bin/bash " > ${DIRRUN}/degrib_${EXP}.bash 
@@ -242,7 +244,7 @@ rm -f GRIBFILE.* namelist.wps
 sed -e "s,#LABELI#,${start_date},g;s,#LABELF#,${start_date},g;s,#LBCINT#,${LBCINT},g;s,#PREFIX#,${EXP},g" \
        ${DIRRUN}/namelist.wps.TEMPLATE > ${DIRRUN}/namelist.wps
 	
-./link_grib.csh ${DATAIN}/${YYYYMMDDHHi}/gfs.t${YYYYMMDDHHi:8:2}z.pgrb2.0p25.f000.${YYYYMMDDHHi}.grib2
+./link_grib.csh ${DATAIN}/${RUN_ID}/gfs.t${YYYYMMDDHHi:8:2}z.pgrb2.0p25.f000.${YYYYMMDDHHi}.grib2
 	
 chmod 755 *
 echo ""
@@ -264,10 +266,10 @@ fi
 #
 # clean up and remove links
 #
-   mv ungrib.log ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/ungrib.${start_date}.log
-   mv namelist.wps ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/namelist.${start_date}.wps
-   mv GFS\:${start_date:0:13} ${DATAOUT}/${YYYYMMDDHHi}/Pre
-   rm -fr ${DATAIN}/${YYYYMMDDHHi}
+   mv ungrib.log ${DATAOUT}/${RUN_ID}/Pre/logs/ungrib.${start_date}.log
+   mv namelist.wps ${DATAOUT}/${RUN_ID}/Pre/logs/namelist.${start_date}.wps
+   mv GFS\:${start_date:0:13} ${DATAOUT}/${RUN_ID}/Pre
+   rm -fr ${DATAIN}/${RUN_ID}
 echo "End of degrib Job"
 
 EOF0
@@ -297,30 +299,30 @@ case "${SCHEDULER_SYSTEM}" in
 #      ${DIRRUN}/degrib_${EXP}.bash
 #      ;;
 esac
-mv ${DIRRUN}/degrib_${EXP}.bash ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs
+mv ${DIRRUN}/degrib_${EXP}.bash ${DATAOUT}/${RUN_ID}/Pre/logs
 
 if [ ${SCHEDULER_SYSTEM} = "SLURM" ]; then
    : # Slurm já gera JOBID na submissão.
 elif [ ${SCHEDULER_SYSTEM} = "PBS" ]; then
-   JOBID=$(sed -n '4p' ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.o | awk '{print $3}' | sed "s/.pbs-ha//g")
-   mv ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.o ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.o.${JOBID}
-   mv ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.e ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.e.${JOBID}
+   JOBID=$(sed -n '4p' ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o | awk '{print $3}' | sed "s/.pbs-ha//g")
+   mv ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o.${JOBID}
+   mv ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e.${JOBID}
 fi
-chmod a+r ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.o.*
-chmod a+r ${DATAOUT}/${YYYYMMDDHHi}/Pre/logs/degrib_${EXP}.e.*
+chmod a+r ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o.*
+chmod a+r ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e.*
 
 files_ungrib=("${EXP}:${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}_${YYYYMMDDHHi:8:2}")
 for file in "${files_ungrib[@]}"
 do
-  if [ ! -s ${DATAOUT}/${YYYYMMDDHHi}/Pre/${file} ] 
+  if [ ! -s ${DATAOUT}/${RUN_ID}/Pre/${file} ]
   then
     echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"	  
-    echo -e  "${RED}==>${NC} Degrib fails! At least the file ${file} was not generated at ${DATAIN}/${YYYYMMDDHHi}. \n"
+    echo -e  "${RED}==>${NC} Degrib fails! At least the file ${file} was not generated at ${DATAIN}/${RUN_ID}. \n"
     echo -e  "${RED}==>${NC} Check logs at ${DATAOUT}/logs/degrib.* .\n"
     echo -e  "${RED}==>${NC} Exiting script. \n"
     exit -1
   fi
 done
 
-chmod 755 ${DATAOUT}/${YYYYMMDDHHi}/Pre/*
+chmod 755 ${DATAOUT}/${RUN_ID}/Pre/*
 rm -fr ${DIRRUN}
