@@ -16,21 +16,22 @@ umask 022
 #
 #-----------------------------------------------------------------------------#
 
-if [ $# -ne 5 ]
+if [ $# -ne 6 ]
 then
    echo ""
    echo "Instructions: execute the command below"
    echo ""
-   echo "${0} EXP RESOLUTION LABELI RUN_ID FCST"
+   echo "${0} EXP RESOLUTION NUMBER_OF_LEVELS LABELI RUN_ID FCST"
    echo ""
    echo "EXP         :: Initial or lateral boundary condition dataset (GFS or ERA)"
    echo "RESOLUTION  :: Number of horizontal grid cells (global) or regional mesh identifier (e.g., 1024002 for the ~24 km mesh)"
+   echo "NUMBER_OF_LEVELS :: Number of vertical levels (e.g., 55)"
    echo "LABELI      :: Forecast initialization date and time (YYYYMMDDHH), e.g., 2026080100"
    echo "RUN_ID      :: Output directory name (must start with YYYYMMDDHH)"
    echo "FCST        :: Forecast length in hours (e.g., 24, 36, 48, etc.)"
    echo ""
    echo "Example for a 24-hour forecast:"
-   echo "${0} GFS 1024002 2026080100 2026080100_CTRL 24"
+   echo "${0} GFS 1024002 55 2026080100 2026080100_CTRL 24"
    echo ""
    exit 1
 fi
@@ -48,9 +49,10 @@ echo ""
 # Input variables:--------------------------------------
 EXP=${1};         #EXP=GFS
 RES=${2};         #RES=1024002
-YYYYMMDDHHi=${3}; #YYYYMMDDHHi=2024012000
-RUN_ID=${4};      #RUN_ID=2024012000_CTRL
-FCST=${5};        #FCST=24
+N_MODEL_LEV=${3}; #NLEV=55
+YYYYMMDDHHi=${4}; #YYYYMMDDHHi=2024012000
+RUN_ID=${5};      #RUN_ID=2024012000_CTRL
+FCST=${6};        #FCST=24
 #-------------------------------------------------------
 
 mkdir -p ${DATAOUT}/${RUN_ID}/Model/logs
@@ -59,7 +61,6 @@ mkdir -p ${DATAOUT}/${RUN_ID}/Model/logs
 start_date=${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}_${YYYYMMDDHHi:8:2}:00:00
 cores=${MODEL_ncores}
 hhi=${YYYYMMDDHHi:8:2}
-NLEV=55
 CONFIG_CONV_INTERVAL="00:30:00"
 export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
 #------------------------------------------------------------------------------------
@@ -137,6 +138,56 @@ else
 fi
 #-------------------------------------------------------
 
+#-------------------------------------------------------
+# Scale model timestep according to vertical resolution.
+#
+# CONFIG_DT values above are defined for the reference
+# configuration with 55 vertical levels. For finer vertical
+# grids, reduce the timestep proportionally.
+#
+# The final CONFIG_DT is chosen so that CONFIG_CONV_INTERVAL
+# is an integer multiple of CONFIG_DT.
+#-------------------------------------------------------
+
+NLEV_REF=55
+CONFIG_DT_REF=${CONFIG_DT}
+
+if (( N_MODEL_LEV > NLEV_REF )); then
+
+    # Timestep suggested by linear vertical-resolution scaling
+    CONFIG_DT_TARGET=$(awk -v dt="${CONFIG_DT_REF}" \
+                           -v nref="${NLEV_REF}" \
+                           -v nlev="${N_MODEL_LEV}" \
+                           'BEGIN {printf "%.6f", dt*nref/nlev}')
+
+    # Convert convection interval HH:MM:SS -> seconds
+    IFS=: read -r conv_h conv_m conv_s <<< "${CONFIG_CONV_INTERVAL}"
+    CONFIG_CONV_INTERVAL_SEC=$((10#$conv_h*3600 + 10#$conv_m*60 + 10#$conv_s))
+
+    # Use the largest integer timestep <= target that exactly divides
+    # the convection interval.
+    CONFIG_DT_INT=$(awk -v x="${CONFIG_DT_TARGET}" 'BEGIN {print int(x)}')
+
+    (( CONFIG_DT_INT < 1 )) && CONFIG_DT_INT=1
+
+    while (( CONFIG_DT_INT > 1 )); do
+        if (( CONFIG_CONV_INTERVAL_SEC % CONFIG_DT_INT == 0 )); then
+            break
+        fi
+        ((CONFIG_DT_INT--))
+    done
+
+    CONFIG_DT="${CONFIG_DT_INT}.0"
+fi
+
+echo "Vertical timestep scaling:"
+echo "  N_MODEL_LEV             = ${N_MODEL_LEV}"
+echo "  reference levels        = ${NLEV_REF}"
+echo "  reference CONFIG_DT     = ${CONFIG_DT_REF} s"
+echo "  final CONFIG_DT         = ${CONFIG_DT} s"
+echo "  CONFIG_CONV_INTERVAL    = ${CONFIG_CONV_INTERVAL}"
+#-------------------------------------------------------
+
 # Setting configuration to apply or not lateral boundary conditions and output filename
 if [[ $MODERUN == "R" ]]; then
    APPLY_LBCS=true
@@ -205,7 +256,7 @@ then
 s,#CONFIG_DT#,${CONFIG_DT},g;s,#CONFIG_LEN_DISP#,${CONFIG_LEN_DISP},g;s,#CONFIG_CONV_INTERVAL#,${CONFIG_CONV_INTERVAL},g;s,#APPLY_LBCS#,${APPLY_LBCS},g;s,#CONFIG_LEN_DISP#,${CONFIG_LEN_DISP},g" \
    ${SCRIPTS}/namelists/namelist.atmosphere${VARTABLE} > ${DIRRUN}/namelist.atmosphere
    
-   sed -e "s,#RES#,${RES},g;s,#RORG#,${RORG},g;s,#LBCINT#,${LBCINT},g;s,#CIORIG#,${EXP},g;s,#LABELI#,${YYYYMMDDHHi},g;s,#NLEV#,${NLEV},g" \
+   sed -e "s,#RES#,${RES},g;s,#RORG#,${RORG},g;s,#LBCINT#,${LBCINT},g;s,#CIORIG#,${EXP},g;s,#LABELI#,${YYYYMMDDHHi},g;s,#N_MODEL_LEV#,${N_MODEL_LEV},g" \
    ${SCRIPTS}/namelists/streams.atmosphere${VARTABLE} > ${DIRRUN}/streams.atmosphere
 fi
 cp -f ${SCRIPTS}/namelists/stream_list.atmosphere.output${VARTABLE} ${DIRRUN}/stream_list.atmosphere.output
@@ -322,7 +373,7 @@ do
    i=$(printf "%04d" ${ii})
    hh=${YYYYMMDDHHi:8:2}
    currentdate=$(date -d "${YYYYMMDDHHi:0:8} ${hh}:00:00 $(echo "(${i}-1)*${t_strout:0:2}" | bc) hours $(echo "(${i}-1)*${t_strout:3:2}" | bc) minutes $(echo "(${i}-1)*${t_strout:6:2}" | bc) seconds" +"%Y%m%d%H.%M.%S")
-   file=MONAN_DIAG_${RORG}_MOD_${EXP}_${YYYYMMDDHHi}_${currentdate}.x${RES}L${NLEV}.nc
+   file=MONAN_DIAG_${RORG}_MOD_${EXP}_${YYYYMMDDHHi}_${currentdate}.x${RES}L${N_MODEL_LEV}.nc
 
    if [ ! -s ${DATAOUT}/${RUN_ID}/Model/${file} ]
    then

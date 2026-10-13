@@ -19,21 +19,22 @@ set -Eeuo pipefail
 #
 #-----------------------------------------------------------------------------#
 
-if [ $# -ne 5 ]
+if [ $# -ne 6 ]
 then
    echo ""
    echo "Instructions: execute the command below"
    echo ""
-   echo "${0} EXP RESOLUTION LABELI RUN_ID FCST"
+   echo "${0} EXP RESOLUTION NUMBER_OF_LEVELS LABELI RUN_ID FCST"
    echo ""
    echo "EXP         :: Initial or lateral boundary condition dataset (GFS or ERA)"
    echo "RESOLUTION  :: Number of horizontal grid cells (global) or regional mesh identifier (e.g., 1024002 for the ~24 km mesh)"
+   echo "NUMBER_OF_LEVELS :: Number of vertical levels (e.g., 55)"
    echo "LABELI      :: Forecast initialization date and time (YYYYMMDDHH), e.g., 2026080100"
    echo "RUN_ID      :: Output directory name (must start with YYYYMMDDHH)"
    echo "FCST        :: Forecast length in hours (e.g., 24, 36, 48, etc.)"
    echo ""
    echo "Example for a 24-hour forecast:"
-   echo "${0} GFS 1024002 2026080100 2026080100_CTRL 24"
+   echo "${0} GFS 1024002 55 2026080100 2026080100_CTRL 24"
    echo ""
    exit 1
 fi
@@ -51,9 +52,10 @@ echo ""
 # Input variables:--------------------------------------
 EXP=${1};         #EXP=GFS
 RES=${2};         #RES=1024002
-YYYYMMDDHHi=${3}; #YYYYMMDDHHi=2024012000
-RUN_ID=${4};      #RUN_ID=2024012000_CTRL
-FCST=${5};        #FCST=24
+N_MODEL_LEV=${3}; #N_MODEL_LEV=55
+YYYYMMDDHHi=${4}; #YYYYMMDDHHi=2024012000
+RUN_ID=${5};      #RUN_ID=2024012000_CTRL
+FCST=${6};        #FCST=24
 #-------------------------------------------------------
 
 mkdir -p ${DATAOUT}/${RUN_ID}/Post/logs
@@ -63,7 +65,6 @@ START_DATE_YYYYMMDD="${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}"
 START_HH="${YYYYMMDDHHi:8:2}"
 maxpostpernode=30    # <------ qtde max de convert_mpas por no!
 export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
-N_MODEL_LEV=55
 NLEV=18
 #-------------------------------------------------------
 
@@ -486,7 +487,7 @@ esac
 cd ${SCRIPTS}
 chmod 755 ${DATAOUT}/${RUN_ID}/Post/*
 if ! time "${SCRIPTS}/make_template.bash" \
-   "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+   "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
 then
    echo "ERROR: Postprocessing failed." >&2
    exit 1

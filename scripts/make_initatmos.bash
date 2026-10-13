@@ -1,21 +1,22 @@
 #!/bin/bash 
 umask 022
 
-if [ $# -ne 5 ]
+if [ $# -ne 6 ]
 then
    echo ""
    echo "Instructions: execute the command below"
    echo ""
-   echo "${0} EXP RESOLUTION LABELI RUN_ID FCST"
+   echo "${0} EXP RESOLUTION NUMBER_OF_LEVELS LABELI RUN_ID FCST"
    echo ""
    echo "EXP         :: Initial or lateral boundary condition dataset (GFS or ERA)"
    echo "RESOLUTION  :: Number of horizontal grid cells (global) or regional mesh identifier (e.g., 1024002 for the ~24 km mesh)"
+   echo "NUMBER_OF_LEVELS :: Number of vertical levels (e.g., 55)"
    echo "LABELI      :: Forecast initialization date and time (YYYYMMDDHH), e.g., 2026080100"
    echo "RUN_ID      :: Output directory name (must start with YYYYMMDDHH)"
    echo "FCST        :: Forecast length in hours (e.g., 24, 36, 48, etc.)"
    echo ""
    echo "Example for a 24-hour forecast:"
-   echo "${0} GFS 1024002 2026080100 2026080100_CTRL 24"
+   echo "${0} GFS 1024002 55 2026080100 2026080100_CTRL 24"
    echo ""
    exit 1
 fi
@@ -43,9 +44,10 @@ EXECS=${DIRHOMED}/execs;               mkdir -p ${EXECS}
 # Input variables:--------------------------------------
 EXP=${1};         #EXP=GFS
 RES=${2};         #RES=1024002
-YYYYMMDDHHi=${3}; #YYYYMMDDHHi=2024012000
-RUN_ID=${4};      #RUN_ID=2024012000_CTRL
-FCST=${5};        #FCST=24
+N_MODEL_LEV=${3}; #N_MODEL_LEV=55
+YYYYMMDDHHi=${4}; #YYYYMMDDHHi=2024012000
+RUN_ID=${5};      #RUN_ID=2024012000_CTRL
+FCST=${6};        #FCST=24
 #-------------------------------------------------------
 
 
@@ -91,7 +93,7 @@ else
    BLEND_BDY_TERRAIN=false
 fi
 
-sed -e "s,#LABELI#,${start_date},g;s,#GEODAT#,${GEODATA},g;s,#RES#,${RES},g;s,#EXP#,${EXP},g;s,#BLEND_BDY_TERRAIN#,${BLEND_BDY_TERRAIN},g" \
+sed -e "s,#LABELI#,${start_date},g;s,#GEODAT#,${GEODATA},g;s,#RES#,${RES},g;s,#N_MODEL_LEV#,${N_MODEL_LEV},g;s,#EXP#,${EXP},g;s,#BLEND_BDY_TERRAIN#,${BLEND_BDY_TERRAIN},g" \
     ${SCRIPTS}/namelists/namelist.init_atmosphere.TEMPLATE > ${DIRRUN}/namelist.init_atmosphere
 
 sed -e "s,#RES#,${RES},g" \

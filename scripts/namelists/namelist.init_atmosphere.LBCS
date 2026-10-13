@@ -6,7 +6,7 @@
     config_coef_3rd_order = 0.25
 /
 &dimensions
-    config_nvertlevels = 55
+    config_nvertlevels = #N_MODEL_LEV#
     config_nsoillevels = 4
     config_nfglevels = 35
     config_nfgsoillevels = 4
@@ -27,7 +27,19 @@
     config_smooth_surfaces = true
     config_dzmin = 0.3
     config_nsm = 30
-    config_tc_vertical_grid = true
+    config_tc_vertical_grid = false        ! Use the vertical grid developed for
+                                           ! real-time tropical-cyclone experiments (default: true).
+    config_bonatti_vertical_grid = true    ! Use the Bonatti zeta3 vertical grid.
+                                           ! This grid increases vertical resolution
+                                           ! in the lower atmosphere using a cubic
+                                           ! polynomial in fractional level index (default: false).
+    config_bonatti_zeta0 = 40.0            ! Target thickness [m] of the first model
+                                           ! layer above the surface when the Bonatti
+                                           ! vertical grid is enabled (typically >= 30.0, default: 40.0).
+    config_bonatti_fm = 0.8                ! Fractional level index at which the
+                                           ! Bonatti vertical coordinate reaches
+                                           ! half of the model-top height
+                                           ! (expected range: 0.5 to 0.8, default: 0.8)
 /
 &interpolation_control
     config_extrap_airtemp = 'linear'

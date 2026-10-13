@@ -103,12 +103,18 @@ if [[ "${STEP}" != "COMPILE" ]]; then
         exit 1
     fi
 
+    if ! [[ "${N_MODEL_LEV}" =~ ^[1-9][0-9]*$ ]]; then
+        echo "ERROR: NUMBER_OF_LEVELS must be a positive integer." >&2
+        exit 1
+    fi
+
     echo ""
     echo "============================================================"
     echo " Run configuration"
     echo "============================================================"
     printf " Input dataset:        %s\n" "${EXP}"
     printf " Resolution/grid:      %s\n" "${RES}"
+    printf " Number of levels:     %s\n" "${N_MODEL_LEV}"
     printf " Initialization:       %s\n" "${YYYYMMDDHHi}"
     printf " Run ID:               %s\n" "${RUN_ID}"
     printf " Forecast length:      %s hours\n" "${FCST}"
@@ -155,19 +161,19 @@ case "${STEP}" in
     PRE)
         echo "Running STEP 2: preprocessing"
         time ${SCRIPTS}/2.pre_processing.bash \
-            "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
         ;;
 
     RUN)
         echo "Running STEP 3: model"
         time ${SCRIPTS}/3.run_model.bash \
-            "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
         ;;
 
     POST)
         echo "Running STEP 4: post-processing"
         time ${SCRIPTS}/4.run_post.bash \
-            "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
         ;;
 
     ALL)
@@ -177,13 +183,13 @@ case "${STEP}" in
             "${github_link}" "${monan_branch}" "${convertmpas_branch}"
 
         time ${SCRIPTS}/2.pre_processing.bash \
-            "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
 
         time ${SCRIPTS}/3.run_model.bash \
-            "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
 
         time ${SCRIPTS}/4.run_post.bash \
-            "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
         ;;
 
     *)

@@ -15,6 +15,9 @@ EXP=GFS
 # 5898242 = 10 km
 RES=655362
 
+# Number of levels
+N_MODEL_LEV=55
+
 # Initial date: YYYYMMDDHH
 YYYYMMDDHHi=2024010100
 
