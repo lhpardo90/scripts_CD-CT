@@ -1,6 +1,7 @@
 datain/fixed
 datain/WPS_GEOG
 datain/ERA5
+datain/ERA5_data
 dataout
 execs
 .venv
