@@ -10,12 +10,12 @@
                   io_type="pnetcdf,cdf5"
                   filename_template="restart.$Y-$M-$D_$h.$m.$s.nc"
                   input_interval="initial_only"
-                  output_interval="none" />
+                  output_interval="#RESTART_INTERVAL#" />
 
 <stream name="output"
         type="output"
         filename_template="MONAN_HIST_#RORG#_MOD_#CIORIG#_#LABELI#_$Y$M$D$h.$m.$s.x#RES#L#N_MODEL_LEV#.nc"
-        output_interval="none" >
+        output_interval="#HIST_INTERVAL#" >
 
 	<file name="stream_list.atmosphere.output"/>
 </stream>
@@ -24,7 +24,7 @@
         type="output"
         io_type="pnetcdf,cdf5"
         filename_template="MONAN_DIAG_#RORG#_MOD_#CIORIG#_#LABELI#_$Y$M$D$h.$m.$s.x#RES#L#N_MODEL_LEV#.nc"
-        output_interval="3:00:00"
+        output_interval="#DIAG_INTERVAL#"
         clobber_mode=replace_files
         precision=single >
 	<file name="stream_list.atmosphere.diagnostics"/>

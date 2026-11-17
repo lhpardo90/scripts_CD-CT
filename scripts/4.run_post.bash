@@ -19,12 +19,12 @@ set -Eeuo pipefail
 #
 #-----------------------------------------------------------------------------#
 
-if [ $# -ne 6 ]
+if [ $# -ne 9 ]
 then
    echo ""
    echo "Instructions: execute the command below"
    echo ""
-   echo "${0} EXP RESOLUTION NUMBER_OF_LEVELS LABELI RUN_ID FCST"
+   echo "${0} EXP RESOLUTION NUMBER_OF_LEVELS LABELI RUN_ID FCST INIT_MODE RESTART_TIME DIAG_INTERVAL"
    echo ""
    echo "EXP         :: Initial or lateral boundary condition dataset (GFS or ERA)"
    echo "RESOLUTION  :: Number of horizontal grid cells (global) or regional mesh identifier (e.g., 1024002 for the ~24 km mesh)"
@@ -34,7 +34,7 @@ then
    echo "FCST        :: Forecast length in hours (e.g., 24, 36, 48, etc.)"
    echo ""
    echo "Example for a 24-hour forecast:"
-   echo "${0} GFS 1024002 55 2026080100 2026080100_CTRL 24"
+   echo "${0} GFS 1024002 55 2026080100 2026080100_CTRL 24 COLD '' 01:00:00"
    echo ""
    exit 1
 fi
@@ -56,23 +56,74 @@ N_MODEL_LEV=${3}; #N_MODEL_LEV=55
 YYYYMMDDHHi=${4}; #YYYYMMDDHHi=2024012000
 RUN_ID=${5};      #RUN_ID=2024012000_CTRL
 FCST=${6};        #FCST=24
+INIT_MODE=${7}
+YYYYMMDDHHi_restart=${8}
+DIAG_INTERVAL=${9}
 #-------------------------------------------------------
 
-mkdir -p ${DATAOUT}/${RUN_ID}/Post/logs
+# Determine the segment being postprocessed
+if [[ "${INIT_MODE}" == "RESTART" ]]; then
+    MODEL_START_TIME="${YYYYMMDDHHi_restart}"
+    POST_LOG_DIR="${DATAOUT}/${RUN_ID}/Post/logs/restart_${MODEL_START_TIME}"
+else
+    MODEL_START_TIME="${YYYYMMDDHHi}"
+    POST_LOG_DIR="${DATAOUT}/${RUN_ID}/Post/logs"
+fi
+
+# Diagnostic interval in seconds
+IFS=: read -r dh dm ds <<< "${DIAG_INTERVAL}"
+
+DIAG_INTERVAL_SEC=$((10#$dh*3600 + 10#$dm*60 + 10#$ds))
+
+# Start and duration of the selected segment
+START_EPOCH=$(
+    date -u -d \
+    "${MODEL_START_TIME:0:4}-${MODEL_START_TIME:4:2}-${MODEL_START_TIME:6:2} ${MODEL_START_TIME:8:2}:00:00" \
+    +%s
+)
+
+FORECAST_SEC=$((FCST * 3600))
+
+# Skip the handoff timestamp for restart segments.
+# That output belongs to the preceding segment.
+if [[ "${INIT_MODE}" == "RESTART" ]]; then
+    FIRST_OFFSET=${DIAG_INTERVAL_SEC}
+else
+    FIRST_OFFSET=0
+fi
+
+if (( FIRST_OFFSET > FORECAST_SEC )); then
+    echo "ERROR: No diagnostic outputs expected within this segment." >&2
+    exit 1
+fi
+
+# Number of diagnostic files to process
+nfiles=$(( (FORECAST_SEC - FIRST_OFFSET) / DIAG_INTERVAL_SEC + 1 ))
+
+if (( nfiles < 1 )); then
+    echo "ERROR: No diagnostic times within requested segment." >&2
+    exit 1
+fi
+
+mkdir -p "${POST_LOG_DIR}"
 
 # Local variables--------------------------------------
 START_DATE_YYYYMMDD="${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}"
 START_HH="${YYYYMMDDHHi:8:2}"
 maxpostpernode=30    # <------ qtde max de convert_mpas por no!
-export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
+
+export DIRRUN="${DIRHOMED}/run.${RUN_ID}"
+
+if [[ -e "${DIRRUN}" ]]; then
+    echo "ERROR: Working directory already exists: ${DIRRUN}" >&2
+    echo "A model or preprocessing job may still be running." >&2
+    exit 1
+fi
+
+mkdir -p "${DIRRUN}" || exit 1
+
 NLEV=18
 #-------------------------------------------------------
-
-# Variables for flex outpout interval from streams.atmosphere------------------------
-t_strout=$(cat ${SCRIPTS}/namelists/streams.atmosphere${VARTABLE} | sed -n '/<stream name="diagnostics"/,/<\/stream>/s/.*output_interval="\([^"]*\)".*/\1/p')
-t_stroutsec=$(echo ${t_strout} | awk -F: '{print ($1 * 3600) + ($2 * 60) + $3}')
-t_strouthor=$(echo "scale=4; (${t_stroutsec}/60)/60" | bc)
-#------------------------------------------------------------------------------------
 
 # Definindo G ou R no MONAN_DIAG
 if [[ $MODERUN == "R" ]]; then
@@ -86,11 +137,6 @@ else
    exit -1
 fi
 #------------------------------------------------------------------------------------
-
-
-# Format to HH:MM:SS t_strout (output_interval)
-IFS=":" read -r h m s <<< "${t_strout}"
-printf -v t_strout "%02d:%02d:%02d" "$h" "$m" "$s"
 
 # Calculating default parameters for different resolutions
 # global mesh
@@ -206,13 +252,6 @@ do
 done
 
 
-# Captura quantos arquivos do modelo tiverem para serem pos-processados e
-# quando nos serao necessarios para executar ${maxpostpernode} convert_mpas por no:
-#nfiles=$(ls -l ${DATAOUT}/${RUN_ID}/Model/MONAN*nc | wc -l)
-# from streams.atmosphere${VARTABLE} in diagnostics the output_interval is flexible
-output_interval=${t_strouthor}
-#nfiles=FCST/output_interval + 1(time zero file)
-nfiles=$(echo "$FCST/$output_interval + 1" | bc)
 echo "${nfiles} post to submit."
 echo "Max ${maxpostpernode} submits per nodes."
 how_many_nodes ${nfiles} ${maxpostpernode}
@@ -258,8 +297,8 @@ do
       s,#NTHREADS#,${POST_nthreads},g;
       s,#PARTITION#,${POST_QUEUE},g;
       s,#WALLTIME#,${POST_walltime},g;
-      s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.${node}.o,g;
-      s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.${node}.e,g" \
+      s,#OUTPUTJOB#,${POST_LOG_DIR}/PostAtmos_node.${node}.o,g;
+      s,#ERRORJOB#,${POST_LOG_DIR}/PostAtmos_node.${node}.e,g" \
       ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > \
       ${DIRRUN}/PostAtmos_node.${node}.sh
    else
@@ -304,7 +343,7 @@ do
    cd ${DIRRUN}/dir.\${i}
    chmod 755 *
    hh=${YYYYMMDDHHi:8:2}
-   currentdate=\$(date -d "${YYYYMMDDHHi:0:8} \${hh}:00:00 \$(echo "(\${i}-1)*${t_strout:0:2}" | bc) hours \$(echo "(\${i}-1)*${t_strout:3:2}" | bc) minutes \$(echo "(\${i}-1)*${t_strout:6:2}" | bc) seconds" +"%Y%m%d%H.%M.%S")
+   currentdate=\$(date -u -d "@\$(( ${START_EPOCH} + ${FIRST_OFFSET} + (\${i}-1)*${DIAG_INTERVAL_SEC} ))" +"%Y%m%d%H.%M.%S")
    diag_name=MONAN_DIAG_${RORG}_MOD_${EXP}_${YYYYMMDDHHi}_\${currentdate}.x${RES}L${N_MODEL_LEV}.nc
 
    model_file=${DATAOUT}/${RUN_ID}/Model/\${diag_name}
@@ -346,7 +385,7 @@ for ii in \$(seq  ${inicio} ${fim})
 do
    i=\$(printf "%04d" \${ii})
    hh=${YYYYMMDDHHi:8:2}
-   currentdate=\$(date -d "${YYYYMMDDHHi:0:8} \${hh}:00:00 \$(echo "(\${i}-1)*${t_strout:0:2}" | bc) hours \$(echo "(\${i}-1)*${t_strout:3:2}" | bc) minutes \$(echo "(\${i}-1)*${t_strout:6:2}" | bc) seconds" +"%Y%m%d%H.%M.%S")
+   currentdate=\$(date -u -d "@\$(( ${START_EPOCH} + ${FIRST_OFFSET} + (\${i}-1)*${DIAG_INTERVAL_SEC} ))" +"%Y%m%d%H.%M.%S")
    diag_name_post=MONAN_DIAG_${RORG}_POS_${EXP}_${YYYYMMDDHHi}_\${currentdate}.x${RES}L${N_MODEL_LEV}.nc
 
    cd ${DIRRUN}/dir.\${i}
@@ -362,8 +401,17 @@ do
    fi
 
    chmod 755 *
-   cp latlon.nc  ${DATAOUT}/${RUN_ID}/Post/\${diag_name_post} >> convert_mpas.output &
-   echo "cp latlon.nc  ${DATAOUT}/${RUN_ID}/Post/\${diag_name_post}"  >> convert_mpas.output
+
+   # Replace existing postprocessed output for this segment.
+   if ! cp -f latlon.nc \
+       "${DATAOUT}/${RUN_ID}/Post/\${diag_name_post}" \
+       >> convert_mpas.output 2>&1; then
+
+       echo "ERROR: Could not save postprocessed output:" >&2
+       echo "       \${diag_name_post}" >&2
+       exit 1
+
+   fi
    
 done
  
@@ -373,7 +421,7 @@ EOSH
   
    chmod a+x ${DIRRUN}/PostAtmos_node.${node}.sh
    chmod 755 ${DIRRUN}/*
-   cp -f ${DIRRUN}/PostAtmos_node.${node}.sh ${DATAOUT}/${RUN_ID}/Post/logs
+   cp -f ${DIRRUN}/PostAtmos_node.${node}.sh ${POST_LOG_DIR}
    chmod 755 ${DATAOUT}/${RUN_ID}/Post/*
    case "${SCHEDULER_SYSTEM}" in
       SLURM)
@@ -426,8 +474,8 @@ then
    s,#NTHREADS#,${POST_nthreads},g;
    s,#PARTITION#,${POST_QUEUE},g;
    s,#WALLTIME#,${POST_walltime},g;
-   s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.${node}.o,g;
-   s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.${node}.e,g" \
+   s,#OUTPUTJOB#,${POST_LOG_DIR}/PostAtmos_node.${node}.o,g;
+   s,#ERRORJOB#,${POST_LOG_DIR}/PostAtmos_node.${node}.e,g" \
    ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > \
    ${DIRRUN}/PostAtmos_node.${node}.sh
 else
@@ -447,15 +495,20 @@ fi
 
 # Saving important files to the logs directory:
 cp -f ${EXECS}/CONVMPAS-VERSION.txt ${DATAOUT}/${RUN_ID}/Post
-cp -f ${EXECS}/CONVMPAS-VERSION.txt ${DATAOUT}/${RUN_ID}/Post/logs
-cp -f ${DIRRUN}/dir.0001/target_domain ${DATAOUT}/${RUN_ID}/Post/logs
-cp -f ${DIRRUN}/dir.0001/convert_mpas.nml ${DATAOUT}/${RUN_ID}/Post/logs
-cp -f ${DIRRUN}/dir.0001/include_fields ${DATAOUT}/${RUN_ID}/Post/logs
-cp -f ${DIRRUN}/dir.0001/convert_mpas.output ${DATAOUT}/${RUN_ID}/Post/logs
-cp -f ${DIRRUN}/PostAtmos_node.*.sh ${DATAOUT}/${RUN_ID}/Post/logs
-cp -f ${DATAOUT}/${RUN_ID}/Model/logs/* ${DATAOUT}/${RUN_ID}/Post/logs
-cp -f ${DATAOUT}/${RUN_ID}/Model/MONAN-VERSION.txt ${DATAOUT}/${RUN_ID}/Post/logs
-
+cp -f ${EXECS}/CONVMPAS-VERSION.txt ${POST_LOG_DIR}
+cp -f ${DIRRUN}/dir.0001/target_domain ${POST_LOG_DIR}
+cp -f ${DIRRUN}/dir.0001/convert_mpas.nml ${POST_LOG_DIR}
+cp -f ${DIRRUN}/dir.0001/include_fields ${POST_LOG_DIR}
+cp -f ${DIRRUN}/dir.0001/convert_mpas.output ${POST_LOG_DIR}
+cp -f ${DIRRUN}/PostAtmos_node.*.sh ${POST_LOG_DIR}
+cp -f ${DATAOUT}/${RUN_ID}/Model/MONAN-VERSION.txt ${POST_LOG_DIR}
+if [ "${INIT_MODE}" = "RESTART" ]; then
+    cp -f ${DATAOUT}/${RUN_ID}/Model/logs/restart_${MODEL_START_TIME}/* \
+        ${POST_LOG_DIR}/
+else
+    find ${DATAOUT}/${RUN_ID}/Model/logs -maxdepth 1 -type f \
+        -exec cp -f {} ${POST_LOG_DIR}/ \;
+fi
 
 cd ${DIRRUN}/..
 rm -fr ${DIRRUN}
@@ -468,13 +521,13 @@ chmod a+x ${DIRRUN}/PostAtmos_node.${node}.sh
 case "${SCHEDULER_SYSTEM}" in
    SLURM)
       echo "Sbatch PostAtmos_node.${node}.sh"
-      sbatch --wait --dependency=${dependency} ${DIRRUN}/PostAtmos_node.${node}.sh 
+      sbatch --wait --dependency=${dependency} "${DIRRUN}/PostAtmos_node.${node}.sh" || exit 1
       ;;
     PBS)
       echo "Rodando em PBS"
       echo -e  "${GREEN}==>${NC} qsub PostAtmos_node.${node}.sh...\n"
       cd ${DIRRUN}
-      qsub -W depend=${dependency} -W block=true ${DIRRUN}/PostAtmos_node.${node}.sh
+      qsub -W depend=${dependency} -W block=true "${DIRRUN}/PostAtmos_node.${node}.sh" || exit 1
       ;;
 #   GENERIC)
 #      echo "Nenhum gerenciador detectado"
@@ -487,7 +540,8 @@ esac
 cd ${SCRIPTS}
 chmod 755 ${DATAOUT}/${RUN_ID}/Post/*
 if ! time "${SCRIPTS}/make_template.bash" \
-   "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+   "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}" \
+   "${INIT_MODE}" "${YYYYMMDDHHi_restart}" "${DIAG_INTERVAL}"
 then
    echo "ERROR: Postprocessing failed." >&2
    exit 1
@@ -499,10 +553,10 @@ do
    if [ ${SCHEDULER_SYSTEM} = "SLURM" ]; then
       : # Slurm já gera JOBID na submissão.
    elif [ ${SCHEDULER_SYSTEM} = "PBS" ]; then
-      JOBID=$(sed -n '4p' ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".o | awk '{print $3}' | sed "s/.pbs-ha//g")
-      mv ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".o ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".o.${JOBID}
-      mv ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".e ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node."${n}".e.${JOBID}
+      JOBID=$(sed -n '4p' ${POST_LOG_DIR}/PostAtmos_node."${n}".o | awk '{print $3}' | sed "s/.pbs-ha//g")
+      mv ${POST_LOG_DIR}/PostAtmos_node."${n}".o ${POST_LOG_DIR}/PostAtmos_node."${n}".o.${JOBID}
+      mv ${POST_LOG_DIR}/PostAtmos_node."${n}".e ${POST_LOG_DIR}/PostAtmos_node."${n}".e.${JOBID}
 fi
 done
-chmod a+r ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.*.o.*
-chmod a+r ${DATAOUT}/${RUN_ID}/Post/logs/PostAtmos_node.*.e.*
+chmod a+r ${POST_LOG_DIR}/PostAtmos_node.*.o.*
+chmod a+r ${POST_LOG_DIR}/PostAtmos_node.*.e.*

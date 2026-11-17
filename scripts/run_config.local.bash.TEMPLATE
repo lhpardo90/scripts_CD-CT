@@ -24,8 +24,21 @@ YYYYMMDDHHi=2024010100
 # Output directory name
 RUN_ID=${YYYYMMDDHHi}
 
-# Forecast length in hours
+# COLD or RESTART
+INIT_MODE=COLD
+
+# Restart checkpoint time (YYYYMMDDHH).
+# Only used when INIT_MODE=RESTART
+# Keep YYYYMMDDHHi and RUN_ID unchanged between restart segments.
+YYYYMMDDHHi_restart=2024010200
+
+# Integration time (hours)
 FCST=48
 
 # Namelist/configuration variant
 VARTABLE=".OPER"
+
+# Output intervals
+DIAG_INTERVAL="01:00:00"
+HIST_INTERVAL="03:00:00"
+RESTART_INTERVAL="24:00:00"

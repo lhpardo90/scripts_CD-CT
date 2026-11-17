@@ -44,6 +44,12 @@ YYYYMMDDHHi=${4}; #YYYYMMDDHHi=2024012000
 RUN_ID=${5};      #RUN_ID=2024012000_CTRL
 FCST=${6};        #FCST=24
 
+LBC_LOG_DIR="${DATAOUT}/${RUN_ID}/Pre/logs"
+
+if [[ "${YYYYMMDDHHi}" != "${RUN_ID:0:10}" ]]; then
+    LBC_LOG_DIR="${LBC_LOG_DIR}/restart_${YYYYMMDDHHi}"
+fi
+
 # Local variables--------------------------------------
 start_date=${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}_${YYYYMMDDHHi:8:2}:00:00
 yyyymmddi=${YYYYMMDDHHi:0:8}
@@ -52,9 +58,16 @@ yyyymmddhhf=$(date +"%Y%m%d%H" -d "${yyyymmddi} ${hhi}:00 ${FCST} hours" )
 final_date=${yyyymmddhhf:0:4}-${yyyymmddhhf:4:2}-${yyyymmddhhf:6:2}_${yyyymmddhhf:8:2}:00:00
 GEODATA=${DATAIN}/WPS_GEOG
 cores=${LBCS_ncores}
-export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
+export DIRRUN="${DIRHOMED}/run.${RUN_ID}"
+
+if [[ -e "${DIRRUN}" ]]; then
+    echo "ERROR: Existing working directory: ${DIRRUN}" >&2
+    exit 1
+fi
+
+mkdir -p "${DIRRUN}" || exit 1
 #-------------------------------------------------------
-mkdir -p ${DATAOUT}/${RUN_ID}/Pre/logs
+mkdir -p ${LBC_LOG_DIR}
 
 if [ ! -s ${DATAIN}/fixed/x1.${RES}.graph.info.part.${cores} ]
 then
@@ -108,8 +121,8 @@ then
    s,#NTHREADS#,${LBCS_nthreads},g;
    s,#PARTITION#,${LBCS_QUEUE},g;
    s,#WALLTIME#,${LBCS_walltime},g;
-   s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/lbcs.o,g;
-   s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/lbcs.e,g" \
+   s,#OUTPUTJOB#,${LBC_LOG_DIR}/lbcs.o,g;
+   s,#ERRORJOB#,${LBC_LOG_DIR}/lbcs.e,g" \
    ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > ${DIRRUN}/lbcs.bash 
 else
    echo "#!/bin/bash " > ${DIRRUN}/lbcs.bash 
@@ -135,13 +148,37 @@ elif [ ${SCHEDULER_SYSTEM} == "PBS" ]; then
    time mpirun --ppn ${LBCS_ncpn} -np ${LBCS_ncores} --depth=${LBCS_nthreads} --cpu-bind depth ./\${executable}
 fi
 
+lbc_exit=\$?
+
+if [ "\$lbc_exit" -ne 0 ]; then
+    echo "ERROR: LBC generation failed with status \$lbc_exit" >&2
+    exit "\$lbc_exit"
+fi
+
 date
 
-mv ${DIRRUN}/log.init_atmosphere.0000.out ${DATAOUT}/${RUN_ID}/Pre/logs/log.init_atmosphere.0000.${RES}.lbcs.nc.${YYYYMMDDHHi}.out
-mv ${DIRRUN}/namelist.init_atmosphere ${DATAOUT}/${RUN_ID}/Pre/logs/namelist.init_atmosphere.lbcs
-mv ${DIRRUN}/streams.init_atmosphere ${DATAOUT}/${RUN_ID}/Pre/logs/streams.init_atmosphere.lbcs
-mv ${DIRRUN}/x1.${RES}.init.nc ${DATAOUT}/${RUN_ID}/Pre
-mv ${DIRRUN}/lbc*.nc ${DATAOUT}/${RUN_ID}/Pre
+mv ${DIRRUN}/log.init_atmosphere.0000.out ${LBC_LOG_DIR}/log.init_atmosphere.0000.${RES}.lbcs.nc.${YYYYMMDDHHi}.out
+mv ${DIRRUN}/namelist.init_atmosphere ${LBC_LOG_DIR}/namelist.init_atmosphere.lbcs
+mv ${DIRRUN}/streams.init_atmosphere ${LBC_LOG_DIR}/streams.init_atmosphere.lbcs
+
+for file in ${DIRRUN}/lbc*.nc; do
+
+    [ -f "\$file" ] || continue
+
+    destination="${DATAOUT}/${RUN_ID}/Pre/\${file##*/}"
+
+    if [ -e "\$destination" ]; then
+
+        # Keep the existing boundary file.
+        rm -f "\$file" || exit 1
+
+    else
+
+        mv "\$file" "\$destination" || exit 1
+
+    fi
+
+done
 
 EOF0
 
@@ -151,12 +188,12 @@ case "${SCHEDULER_SYSTEM}" in
    SLURM)
       echo -e  "${GREEN}==>${NC} Sbatch lbcs.bash...\n"
       cd ${DIRRUN}
-      sbatch --wait ${DIRRUN}/lbcs.bash
+      sbatch --wait "${DIRRUN}/lbcs.bash" || exit 1
       ;;
     PBS)
       echo -e  "${GREEN}==>${NC} qsub lbcs.bash...\n"
       cd ${DIRRUN}
-      qsub -W block=true ${DIRRUN}/lbcs.bash
+      qsub -W block=true "${DIRRUN}/lbcs.bash" || exit 1
       ;;
 #    GENERIC)
 #      echo "Nenhum gerenciador detectado"
@@ -164,17 +201,17 @@ case "${SCHEDULER_SYSTEM}" in
 #      ${DIRRUN}/lbcs.bash
 #      ;;
 esac
-mv ${DIRRUN}/lbcs.bash ${DATAOUT}/${RUN_ID}/Pre/logs
+mv ${DIRRUN}/lbcs.bash ${LBC_LOG_DIR}
 
 if [ ${SCHEDULER_SYSTEM} = "SLURM" ]; then
    : # Slurm já gera JOBID na submissão.
 elif [ ${SCHEDULER_SYSTEM} = "PBS" ]; then
-   JOBID=$(sed -n '4p' ${DATAOUT}/${RUN_ID}/Pre/logs/lbcs.o | awk '{print $3}' | sed "s/.pbs-ha//g")
-   mv ${DATAOUT}/${RUN_ID}/Pre/logs/lbcs.o ${DATAOUT}/${RUN_ID}/Pre/logs/lbcs.o.${JOBID}
-   mv ${DATAOUT}/${RUN_ID}/Pre/logs/lbcs.e ${DATAOUT}/${RUN_ID}/Pre/logs/lbcs.e.${JOBID}
+   JOBID=$(sed -n '4p' ${LBC_LOG_DIR}/lbcs.o | awk '{print $3}' | sed "s/.pbs-ha//g")
+   mv ${LBC_LOG_DIR}/lbcs.o ${LBC_LOG_DIR}/lbcs.o.${JOBID}
+   mv ${LBC_LOG_DIR}/lbcs.e ${LBC_LOG_DIR}/lbcs.e.${JOBID}
 fi
-chmod a+r ${DATAOUT}/${RUN_ID}/Pre/logs/lbcs.o.*
-chmod a+r ${DATAOUT}/${RUN_ID}/Pre/logs/lbcs.e.*
+chmod a+r ${LBC_LOG_DIR}/lbcs.o.*
+chmod a+r ${LBC_LOG_DIR}/lbcs.e.*
 
 if [ -z "$(ls ${DATAOUT}/${RUN_ID}/Pre/lbc* 2>/dev/null)" ]
 then

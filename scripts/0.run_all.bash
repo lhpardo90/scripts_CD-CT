@@ -108,20 +108,169 @@ if [[ "${STEP}" != "COMPILE" ]]; then
         exit 1
     fi
 
+    # Validate integration/forecast duration
+    if ! [[ "${FCST}" =~ ^[1-9][0-9]*$ ]]; then
+        echo "ERROR: FCST must be a positive integer number of hours." >&2
+        exit 1
+    fi
+
+    # PRE also needs the restart time when generating new LBCs.
+    if [[ "${STEP}" == "PRE" ]]; then
+
+        case "${INIT_MODE}" in
+            COLD)
+                ;;
+            RESTART)
+                if [[ ! "${YYYYMMDDHHi_restart}" =~ ^[0-9]{10}$ ]]; then
+                    echo "ERROR: Invalid YYYYMMDDHHi_restart." >&2
+                    exit 1
+                fi
+
+                if [[ "${YYYYMMDDHHi_restart}" < "${YYYYMMDDHHi}" ]]; then
+                    echo "ERROR: Restart precedes original initialization." >&2
+                    exit 1
+                fi
+
+                if [[ "${MODERUN}" != "R" ]]; then
+                    echo "ERROR: Boundary-condition preprocessing requires MODERUN=R." >&2
+                    exit 1
+                fi
+                ;;
+            *)
+                echo "ERROR: INIT_MODE must be COLD or RESTART." >&2
+                exit 1
+                ;;
+        esac
+
+    fi
+
+    # RUN and POST need to know which integration segment is selected.
+    if [[ "${STEP}" == "RUN" || "${STEP}" == "POST" || "${STEP}" == "ALL" ]]; then
+
+        case "${INIT_MODE}" in
+            COLD)
+                MODEL_START_TIME="${YYYYMMDDHHi}"
+                ;;
+
+            RESTART)
+                if [[ ! "${YYYYMMDDHHi_restart}" =~ ^[0-9]{10}$ ]]; then
+                    echo "ERROR: Invalid YYYYMMDDHHi_restart." >&2
+                    exit 1
+                fi
+
+                if [[ "${YYYYMMDDHHi_restart}" < "${YYYYMMDDHHi}" ]]; then
+                    echo "ERROR: Restart precedes original initialization." >&2
+                    exit 1
+                fi
+
+                if [[ "${STEP}" == "ALL" ]]; then
+                    echo "ERROR: ALL is not supported for RESTART." >&2
+                    echo "Use RUN or POST." >&2
+                    exit 1
+                fi
+
+                MODEL_START_TIME="${YYYYMMDDHHi_restart}"
+                ;;
+
+            *)
+                echo "ERROR: INIT_MODE must be COLD or RESTART." >&2
+                exit 1
+                ;;
+        esac
+
+        # POST only needs DIAG_INTERVAL.
+        # RUN additionally needs HIST_INTERVAL and RESTART_INTERVAL.
+        intervals=(DIAG_INTERVAL)
+
+        if [[ "${STEP}" == "RUN" || "${STEP}" == "ALL" ]]; then
+            intervals+=(HIST_INTERVAL RESTART_INTERVAL)
+        fi
+
+        for interval_name in "${intervals[@]}"; do
+
+            interval_value="${!interval_name:-}"
+
+            if [[ ! "${interval_value}" =~ ^[0-9]{2}:[0-5][0-9]:[0-5][0-9]$ ]]; then
+                echo "ERROR: ${interval_name} must be HH:MM:SS." >&2
+                exit 1
+            fi
+
+            IFS=: read -r ih im is <<< "${interval_value}"
+
+            if (( 10#$ih*3600 + 10#$im*60 + 10#$is == 0 )); then
+                echo "ERROR: ${interval_name} must be positive." >&2
+                exit 1
+            fi
+
+        done
+
+        # The current GrADS template uses whole-minute intervals.
+        if [[ "${STEP}" == "POST" || "${STEP}" == "ALL" ]]; then
+            IFS=: read -r dh dm ds <<< "${DIAG_INTERVAL}"
+
+            if (( 10#$ds != 0 )); then
+                echo "ERROR: POST requires DIAG_INTERVAL in whole minutes." >&2
+                exit 1
+            fi
+        fi
+
+    fi
+
     echo ""
     echo "============================================================"
-    echo " Run configuration"
+    echo " Run configuration: ${STEP}"
     echo "============================================================"
-    printf " Input dataset:        %s\n" "${EXP}"
-    printf " Resolution/grid:      %s\n" "${RES}"
-    printf " Number of levels:     %s\n" "${N_MODEL_LEV}"
-    printf " Initialization:       %s\n" "${YYYYMMDDHHi}"
-    printf " Run ID:               %s\n" "${RUN_ID}"
-    printf " Forecast length:      %s hours\n" "${FCST}"
-    printf " Namelists version:    %s\n" "${VARTABLE}"
-    printf " Run mode:             %s (%s)\n" \
+
+    printf " Input dataset:            %s\n" "${EXP}"
+    printf " Resolution/grid:          %s\n" "${RES}"
+    printf " Number of levels:         %s\n" "${N_MODEL_LEV}"
+
+    if [[ "${STEP}" == "RUN" || "${STEP}" == "POST" || "${STEP}" == "ALL" ]]; then
+
+        printf " Initialization mode:      %s\n" "${INIT_MODE}"
+
+        if [[ "${INIT_MODE}" == "RESTART" ]]; then
+            printf " Original start:           %s\n" "${YYYYMMDDHHi}"
+            printf " Restart time:             %s\n" "${YYYYMMDDHHi_restart}"
+        else
+            printf " Initialization:           %s\n" "${YYYYMMDDHHi}"
+        fi
+
+    elif [[ "${STEP}" == "PRE" && "${INIT_MODE}" == "RESTART" ]]; then
+
+        printf " Initialization mode:      %s\n" "${INIT_MODE}"
+        printf " Original start:           %s\n" "${YYYYMMDDHHi}"
+        printf " Restart time:             %s\n" "${YYYYMMDDHHi_restart}"
+
+    else
+        printf " Initialization:           %s\n" "${YYYYMMDDHHi}"
+    fi
+
+    printf " Run ID:                   %s\n" "${RUN_ID}"
+
+    if [[ "${STEP}" == "RUN" || "${STEP}" == "ALL" ]]; then
+
+        printf " Integration time:         %s hours\n" "${FCST}"
+        printf " Namelists version:        %s\n" "${VARTABLE}"
+        printf " DIAG output interval:     %s\n" "${DIAG_INTERVAL}"
+        printf " HIST output interval:     %s\n" "${HIST_INTERVAL}"
+        printf " RESTART output interval:  %s\n" "${RESTART_INTERVAL}"
+
+    elif [[ "${STEP}" == "POST" ]]; then
+
+        printf " Segment duration:         %s hours\n" "${FCST}"
+        printf " Namelists version:        %s\n" "${VARTABLE}"
+        printf " DIAG output interval:     %s\n" "${DIAG_INTERVAL}"
+
+    else
+        printf " Forecast length:          %s hours\n" "${FCST}"
+    fi
+
+    printf " Run mode:                 %s (%s)\n" \
         "${MODERUN}" "${MODE_DESCRIPTION}"
-    printf " Data directory:       %s\n" "${DATAOUT}/${RUN_ID}"
+
+    printf " Data directory:           %s\n" "${DATAOUT}/${RUN_ID}"
+
     echo "============================================================"
     echo ""
 
@@ -160,36 +309,44 @@ case "${STEP}" in
 
     PRE)
         echo "Running STEP 2: preprocessing"
-        time ${SCRIPTS}/2.pre_processing.bash \
-            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+        time "${SCRIPTS}/2.pre_processing.bash" \
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}" \
+            "${INIT_MODE}" "${YYYYMMDDHHi_restart}"
         ;;
 
     RUN)
         echo "Running STEP 3: model"
         time ${SCRIPTS}/3.run_model.bash \
-            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}" \
+            "${INIT_MODE}" "${YYYYMMDDHHi_restart}" \
+            "${DIAG_INTERVAL}" "${HIST_INTERVAL}" "${RESTART_INTERVAL}"
         ;;
 
     POST)
         echo "Running STEP 4: post-processing"
         time ${SCRIPTS}/4.run_post.bash \
-            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}" \
+            "${INIT_MODE}" "${YYYYMMDDHHi_restart}" "${DIAG_INTERVAL}"
         ;;
 
     ALL)
         echo "Running complete workflow"
 
         time ${SCRIPTS}/1.install_monan.bash \
-            "${github_link}" "${monan_branch}" "${convertmpas_branch}"
+            "${github_link}" "${monan_branch}" "${convertmpas_branch}" || exit 1
 
-        time ${SCRIPTS}/2.pre_processing.bash \
-            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+        time "${SCRIPTS}/2.pre_processing.bash" \
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}" \
+            "${INIT_MODE}" "${YYYYMMDDHHi_restart}" || exit 1
 
         time ${SCRIPTS}/3.run_model.bash \
-            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}" \
+            "${INIT_MODE}" "${YYYYMMDDHHi_restart}" \
+            "${DIAG_INTERVAL}" "${HIST_INTERVAL}" "${RESTART_INTERVAL}" || exit 1
 
         time ${SCRIPTS}/4.run_post.bash \
-            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+            "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}" \
+            "${INIT_MODE}" "${YYYYMMDDHHi_restart}" "${DIAG_INTERVAL}" || exit 1
         ;;
 
     *)

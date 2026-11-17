@@ -18,7 +18,7 @@ umask 022
 #
 #-----------------------------------------------------------------------------#
 
-if [ $# -ne 6 ]
+if [ $# -ne 8 ]
 then
    echo ""
    echo "Instructions: execute the command below"
@@ -55,8 +55,96 @@ N_MODEL_LEV=${3}; #N_MODEL_LEV=55
 YYYYMMDDHHi=${4}; #YYYYMMDDHHi=2024012000
 RUN_ID=${5};      #RUN_ID=2024012000_CTRL
 FCST=${6};        #FCST=24
+INIT_MODE=${7}
+YYYYMMDDHHi_restart=${8}
 #-------------------------------------------------------
 
+case "${INIT_MODE}" in
+    COLD)
+        PRE_START_TIME="${YYYYMMDDHHi}"
+        ;;
+    RESTART)
+        PRE_START_TIME="${YYYYMMDDHHi_restart}"
+
+        if [[ ! "${PRE_START_TIME}" =~ ^[0-9]{10}$ ]]; then
+            echo "ERROR: Invalid restart timestamp." >&2
+            exit 1
+        fi
+
+        if [[ "${MODERUN}" != "R" ]]; then
+            echo "ERROR: Restart PRE requires MODERUN=R." >&2
+            exit 1
+        fi
+
+        if [[ ! -s "${DATAOUT}/${RUN_ID}/Pre/x1.${RES}.init.nc" ]]; then
+            echo "ERROR: Original initialization file missing." >&2
+            exit 1
+        fi
+        ;;
+    *)
+        echo "ERROR: INIT_MODE must be COLD or RESTART." >&2
+        exit 1
+        ;;
+esac
+
+LBC_FCST="${FCST}"
+GFS_DEGRIB_FCST="${FCST}"
+GENERATE_LBCS=true
+
+if [[ "${INIT_MODE}" == "RESTART" ]]; then
+
+    if ! [[ "${LBCINT}" =~ ^[1-9][0-9]*$ ]] ||
+       (( LBCINT % 3600 != 0 )); then
+        echo "ERROR: Invalid LBCINT." >&2
+        exit 1
+    fi
+
+    LBC_HOURS=$((LBCINT / 3600))
+
+    # Ensure boundary conditions extend beyond the segment end.
+    LBC_FCST=$(( ((FCST + LBC_HOURS - 1) / LBC_HOURS) * LBC_HOURS ))
+
+    original_epoch=$(
+        date -u -d \
+        "${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2} ${YYYYMMDDHHi:8:2}:00:00" \
+        +%s
+    ) || exit 1
+
+    restart_epoch=$(
+        date -u -d \
+        "${PRE_START_TIME:0:4}-${PRE_START_TIME:4:2}-${PRE_START_TIME:6:2} ${PRE_START_TIME:8:2}:00:00" \
+        +%s
+    ) || exit 1
+
+    if (( restart_epoch < original_epoch ||
+          (restart_epoch - original_epoch) % LBCINT != 0 )); then
+        echo "ERROR: Restart time is before initialization or not aligned with LBCINT." >&2
+        exit 1
+    fi
+
+    # GFS uses forecast hours relative to its original cycle.
+    elapsed_hours=$(( (restart_epoch - original_epoch) / 3600 ))
+    GFS_DEGRIB_FCST=$((elapsed_hours + LBC_FCST))
+
+    # Check whether boundary conditions need to be generated
+    GENERATE_LBCS=false
+
+    for ((offset=0; offset<=LBC_FCST*3600; offset+=LBCINT)); do
+
+        lbc_stamp=$(date -u -d "@$((restart_epoch + offset))" \
+            +'%Y-%m-%d_%H.%M.%S') || exit 1
+
+        if [[ ! -s "${DATAOUT}/${RUN_ID}/Pre/lbc.${lbc_stamp}.nc" ]]; then
+            GENERATE_LBCS=true
+            break
+        fi
+
+    done
+
+    if [[ "${GENERATE_LBCS}" == "false" ]]; then
+        echo "All required LBCs already exist. Skipping generation."
+    fi
+fi
 
 # Local variables--------------------------------------
 # Calculating CIs and final forecast dates in model namelist format:
@@ -64,7 +152,12 @@ yyyymmddi=${YYYYMMDDHHi:0:8}
 hhi=${YYYYMMDDHHi:8:2}
 yyyymmddhhf=$(date +"%Y%m%d%H" -d "${yyyymmddi} ${hhi}:00 ${FCST} hours" )
 final_date=${yyyymmddhhf:0:4}-${yyyymmddhhf:4:2}-${yyyymmddhhf:6:2}_${yyyymmddhhf:8:2}.00.00
-export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
+export DIRRUN="${DIRHOMED}/run.${RUN_ID}"
+
+if [[ -e "${DIRRUN}" ]]; then
+    echo "ERROR: Existing working directory: ${DIRRUN}" >&2
+    exit 1
+fi
 #-------------------------------------------------------
 
 echo -e  "${GREEN}==>${NC} Scripts_CD-CT last commit: \n"
@@ -161,88 +254,105 @@ cd ${SCRIPTS}
 
 
 # Creating the x1.${RES}.static.nc file once, if does not exist yet:---------------
-if [[ ${EXP} == "GFS" || ${EXP} == "ERA" ]]; then
-   if [ ! -s ${DATAIN}/fixed/x1.${RES}.static.nc ]
-   then
-      echo -e "${GREEN}==>${NC} Creating static.bash for submiting init_atmosphere to create x1.${RES}.static.nc...\n"
-      if ! time ./make_static.bash \
-         "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+if [[ "${INIT_MODE}" == "COLD" ]]; then
+
+   if [[ ${EXP} == "GFS" || ${EXP} == "ERA" ]]; then
+      if [ ! -s ${DATAIN}/fixed/x1.${RES}.static.nc ]
       then
-         echo "ERROR: Static generation failed." >&2
-         exit 1
+         echo -e "${GREEN}==>${NC} Creating static.bash for submiting init_atmosphere to create x1.${RES}.static.nc...\n"
+         if ! time ./make_static.bash \
+            "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+         then
+            echo "ERROR: Static generation failed." >&2
+            exit 1
+         fi
+      else
+         echo -e "${GREEN}==>${NC} File x1.${RES}.static.nc already exist in ${DATAIN}/fixed.\n"
       fi
    else
-      echo -e "${GREEN}==>${NC} File x1.${RES}.static.nc already exist in ${DATAIN}/fixed.\n"
+      echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
+      echo -e  "${RED}==>${NC} Static phase fails! Please select EXP=GFS or EXP=ERA.\n"
+      echo -e  "${RED}==>${NC} Exiting script. \n"
+      exit -1
    fi
-else
-   echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
-   echo -e  "${RED}==>${NC} Static phase fails! Please select EXP=GFS or EXP=ERA.\n"
-   echo -e  "${RED}==>${NC} Exiting script. \n"
-   exit -1
+
 fi
 
+if [[ "${INIT_MODE}" == "RESTART" &&
+      ! -s "${DATAIN}/fixed/x1.${RES}.static.nc" ]]; then
+    echo "ERROR: Static file missing for restart preprocessing." >&2
+    exit 1
+fi
 #----------------------------------------------------------------------------------
 
 # Degrib phase:---------------------------------------------------------------------
-if [[ ${EXP} == "GFS" ]]
-then
-   echo -e  "${GREEN}==>${NC} Submitting Degrib for GFS data...\n"
-   if ! time ./make_degrib_GFS.bash \
-      "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+if [[ "${GENERATE_LBCS}" == "true" ]]; then
+
+   if [[ ${EXP} == "GFS" ]]
    then
-      echo "ERROR: GFS degrib failed." >&2
-      exit 1
-   fi
-elif [[ ${EXP} == "ERA" ]]
-then
-   echo -e  "${GREEN}==>${NC} Submitting Degrib for ERA data...\n"
-   if ! time ./make_degrib_ERA5.bash \
-      "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+      echo -e  "${GREEN}==>${NC} Submitting Degrib for GFS data...\n"
+      if ! time ./make_degrib_GFS.bash \
+         "${EXP}" "${RES}" "${YYYYMMDDHHi}" "${RUN_ID}" "${GFS_DEGRIB_FCST}"
+      then
+         echo "ERROR: GFS degrib failed." >&2
+         exit 1
+      fi
+   elif [[ ${EXP} == "ERA" ]]
    then
-      echo "ERROR: ERA5 degrib failed." >&2
-      exit 1
+      echo -e  "${GREEN}==>${NC} Submitting Degrib for ERA data...\n"
+      if ! time ./make_degrib_ERA5.bash \
+         "${EXP}" "${RES}" "${PRE_START_TIME}" "${RUN_ID}" "${LBC_FCST}"
+      then
+         echo "ERROR: ERA5 degrib failed." >&2
+         exit 1
+      fi
+   else
+      echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
+      echo -e  "${RED}==>${NC} Degrib phase fails! Please select EXP=GFS or EXP=ERA.\n"
+      echo -e  "${RED}==>${NC} Exiting script. \n"
+      exit -1
    fi
-else
-   echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
-   echo -e  "${RED}==>${NC} Degrib phase fails! Please select EXP=GFS or EXP=ERA.\n"
-   echo -e  "${RED}==>${NC} Exiting script. \n"
-   exit -1
-fi
+fi # GENERATE_LBCS
 #----------------------------------------------------------------------------------
 
 # Init Atmosphere phase:------------------------------------------------------------
-if [[ ${EXP} == "GFS" || ${EXP} == "ERA" ]]; then
-   echo -e  "${GREEN}==>${NC} Submitting Init Atmosphere for real case...\n"
-   if ! time ./make_initatmos.bash \
-      "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
-   then
-      echo "ERROR: Init Atmosphere failed." >&2
-      exit 1
+if [[ "${INIT_MODE}" == "COLD" ]]; then
+
+   if [[ ${EXP} == "GFS" || ${EXP} == "ERA" ]]; then
+      echo -e  "${GREEN}==>${NC} Submitting Init Atmosphere for real case...\n"
+      if ! time ./make_initatmos.bash \
+         "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
+      then
+         echo "ERROR: Init Atmosphere failed." >&2
+         exit 1
+      fi
+   else
+      echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
+      echo -e  "${RED}==>${NC} Init Atmosphere phase fails! Please select EXP=GFS or EXP=ERA.\n"
+      echo -e  "${RED}==>${NC} Exiting script. \n"
+      exit -1
    fi
-else
-   echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
-   echo -e  "${RED}==>${NC} Init Atmosphere phase fails! Please select EXP=GFS or EXP=ERA.\n"
-   echo -e  "${RED}==>${NC} Exiting script. \n"
-   exit -1
 fi
 #----------------------------------------------------------------------------------
 
 # LBCs phase:------------------------------------------------------------
-if [[ $MODERUN == "R" ]]; then
-   echo -e  "${GREEN}==>${NC} Regional simulation: submitting Init Atmosphere to generate lateral boundary conditions...\n"
-   if ! time ./make_lbcs.bash \
-      "${EXP}" "${RES}" "${N_MODEL_LEV}" "${YYYYMMDDHHi}" "${RUN_ID}" "${FCST}"
-   then
-      echo "ERROR: LBC generation failed." >&2
-      exit 1
+if [[ "${GENERATE_LBCS}" == "true" ]]; then
+   if [[ $MODERUN == "R" ]]; then
+      echo -e  "${GREEN}==>${NC} Regional simulation: submitting Init Atmosphere to generate lateral boundary conditions...\n"
+      if ! time ./make_lbcs.bash \
+         "${EXP}" "${RES}" "${N_MODEL_LEV}" "${PRE_START_TIME}" "${RUN_ID}" "${LBC_FCST}"
+      then
+         echo "ERROR: LBC generation failed." >&2
+         exit 1
+      fi
+   elif [[ $MODERUN == "G" ]]; then
+      echo -e  "${GREEN}==>${NC} Global simulation: no need for lateral boundary conditions.\n"
+   else
+      echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
+      echo -e  "${RED}==>${NC} LBCs phase fails! Please select MODERUN=R or G.\n"
+      echo -e  "${RED}==>${NC} Exiting script. \n"
+      exit -1
    fi
-elif [[ $MODERUN == "G" ]]; then
-   echo -e  "${GREEN}==>${NC} Global simulation: no need for lateral boundary conditions.\n"
-else
-   echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
-   echo -e  "${RED}==>${NC} LBCs phase fails! Please select MODERUN=R or G.\n"
-   echo -e  "${RED}==>${NC} Exiting script. \n"
-   exit -1
 fi
 #----------------------------------------------------------------------------------
 

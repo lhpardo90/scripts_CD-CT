@@ -46,7 +46,7 @@
     config_block_decomp_file_prefix = 'x1.#RES#.graph.info.part.'
 /
 &restart
-    config_do_restart = false
+    config_do_restart = #DO_RESTART#
 /
 &printout
     config_print_global_minmax_vel = true

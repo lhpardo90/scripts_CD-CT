@@ -47,16 +47,25 @@ RUN_ID=${4};      #RUN_ID=2024012000_CTRL
 FCST=${5};        #FCST=24
 #-------------------------------------------------------
 
+DEGRIB_LOG_DIR="${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}_${YYYYMMDDHHi}_${FCST}h"
+
 # Local variables--------------------------------------
 start_date=${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}_${YYYYMMDDHHi:8:2}:00:00
 yyyymmddi=${YYYYMMDDHHi:0:8}
 hhi=${YYYYMMDDHHi:8:2}
 yyyymmddhhf=$(date +"%Y%m%d%H" -d "${yyyymmddi} ${hhi}:00 ${FCST} hours" )
 final_date=${yyyymmddhhf:0:4}-${yyyymmddhhf:4:2}-${yyyymmddhhf:6:2}_${yyyymmddhhf:8:2}:00:00
-export DIRRUN=${DIRHOMED}/run.${RUN_ID}; rm -fr ${DIRRUN}; mkdir -p ${DIRRUN}
+export DIRRUN="${DIRHOMED}/run.${RUN_ID}"
+
+if [[ -e "${DIRRUN}" ]]; then
+    echo "ERROR: Existing working directory: ${DIRRUN}" >&2
+    exit 1
+fi
+
+mkdir -p "${DIRRUN}" || exit 1
 #-------------------------------------------------------
 mkdir -p ${DATAIN}/${RUN_ID}
-mkdir -p ${DATAOUT}/${RUN_ID}/Pre/logs
+mkdir -p ${DEGRIB_LOG_DIR}
 
 if [ "$HOSTNAME" = "egeon" ]; then
     mkdir -p ${HOME}/local/lib64
@@ -128,8 +137,8 @@ if [[ $MODERUN == "R" ]]; then
       s,#NTHREADS#,${DEGRIB_nthreads},g;
       s,#PARTITION#,${DEGRIB_QUEUE},g;
       s,#WALLTIME#,${DEGRIB_walltime},g;
-      s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o,g;
-      s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e,g" \
+      s,#OUTPUTJOB#,${DEGRIB_LOG_DIR}/degrib_${EXP}.o,g;
+      s,#ERRORJOB#,${DEGRIB_LOG_DIR}/degrib_${EXP}.e,g" \
       ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > ${DIRRUN}/degrib_${EXP}.bash
    else
       echo "#!/bin/bash " > ${DIRRUN}/degrib_${EXP}.bash
@@ -187,9 +196,23 @@ fi
 #
 # clean up and remove links
 #
-   mv ungrib.log ${DATAOUT}/${RUN_ID}/Pre/logs/ungrib.${start_date}.log
-   mv namelist.wps ${DATAOUT}/${RUN_ID}/Pre/logs/namelist.${start_date}.wps
-   mv GFS* ${DATAOUT}/${RUN_ID}/Pre
+   mv ungrib.log ${DEGRIB_LOG_DIR}/ungrib.${start_date}.log
+   mv namelist.wps ${DEGRIB_LOG_DIR}/namelist.${start_date}.wps
+
+   for file in ${DIRRUN}/GFS:*; do
+
+       [ -f "\$file" ] || continue
+
+       destination="${DATAOUT}/${RUN_ID}/Pre/\${file##*/}"
+
+       if [ -e "\$destination" ]; then
+           rm -f "\$file" || exit 1
+       else
+           mv "\$file" "\$destination" || exit 1
+       fi
+
+   done
+
    rm -fr ${DATAIN}/${RUN_ID}
 
 echo "End of degrib Job"
@@ -210,8 +233,8 @@ elif [[ $MODERUN == "G" ]]; then
       s,#NTHREADS#,${DEGRIB_nthreads},g;
       s,#PARTITION#,${DEGRIB_QUEUE},g;
       s,#WALLTIME#,${DEGRIB_walltime},g;
-      s,#OUTPUTJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o,g;
-      s,#ERRORJOB#,${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e,g" \
+      s,#OUTPUTJOB#,${DEGRIB_LOG_DIR}/degrib_${EXP}.o,g;
+      s,#ERRORJOB#,${DEGRIB_LOG_DIR}/degrib_${EXP}.e,g" \
       ${SCRIPTS}/stools/submit_${SYSTEM_KEY}.bash_TEMPLATE > ${DIRRUN}/degrib_${EXP}.bash 
    else
       echo "#!/bin/bash " > ${DIRRUN}/degrib_${EXP}.bash 
@@ -266,8 +289,8 @@ fi
 #
 # clean up and remove links
 #
-   mv ungrib.log ${DATAOUT}/${RUN_ID}/Pre/logs/ungrib.${start_date}.log
-   mv namelist.wps ${DATAOUT}/${RUN_ID}/Pre/logs/namelist.${start_date}.wps
+   mv ungrib.log ${DEGRIB_LOG_DIR}/ungrib.${start_date}.log
+   mv namelist.wps ${DEGRIB_LOG_DIR}/namelist.${start_date}.wps
    mv GFS\:${start_date:0:13} ${DATAOUT}/${RUN_ID}/Pre
    rm -fr ${DATAIN}/${RUN_ID}
 echo "End of degrib Job"
@@ -287,29 +310,29 @@ case "${SCHEDULER_SYSTEM}" in
    SLURM)
       echo -e  "${GREEN}==>${NC} Sbatch degrib_${EXP}.bash...\n"
       cd ${DIRRUN}
-      sbatch --wait ${DIRRUN}/degrib_${EXP}.bash
+      sbatch --wait "${DIRRUN}/degrib_${EXP}.bash" || exit 1
         ;;
    PBS)
       echo -e  "${GREEN}==>${NC} Qsub degrib_${EXP}.bash...\n"
       cd ${DIRRUN}
-      qsub -W block=true ${DIRRUN}/degrib_${EXP}.bash
+      qsub -W block=true "${DIRRUN}/degrib_${EXP}.bash" || exit 1
        ;;
 #    GENERIC)
 #      echo "Nenhum gerenciador detectado"
 #      ${DIRRUN}/degrib_${EXP}.bash
 #      ;;
 esac
-mv ${DIRRUN}/degrib_${EXP}.bash ${DATAOUT}/${RUN_ID}/Pre/logs
+mv ${DIRRUN}/degrib_${EXP}.bash ${DEGRIB_LOG_DIR}
 
 if [ ${SCHEDULER_SYSTEM} = "SLURM" ]; then
    : # Slurm já gera JOBID na submissão.
 elif [ ${SCHEDULER_SYSTEM} = "PBS" ]; then
-   JOBID=$(sed -n '4p' ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o | awk '{print $3}' | sed "s/.pbs-ha//g")
-   mv ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o.${JOBID}
-   mv ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e.${JOBID}
+   JOBID=$(sed -n '4p' ${DEGRIB_LOG_DIR}/degrib_${EXP}.o | awk '{print $3}' | sed "s/.pbs-ha//g")
+   mv ${DEGRIB_LOG_DIR}/degrib_${EXP}.o ${DEGRIB_LOG_DIR}/degrib_${EXP}.o.${JOBID}
+   mv ${DEGRIB_LOG_DIR}/degrib_${EXP}.e ${DEGRIB_LOG_DIR}/degrib_${EXP}.e.${JOBID}
 fi
-chmod a+r ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.o.*
-chmod a+r ${DATAOUT}/${RUN_ID}/Pre/logs/degrib_${EXP}.e.*
+chmod a+r ${DEGRIB_LOG_DIR}/degrib_${EXP}.o.*
+chmod a+r ${DEGRIB_LOG_DIR}/degrib_${EXP}.e.*
 
 files_ungrib=("${EXP}:${YYYYMMDDHHi:0:4}-${YYYYMMDDHHi:4:2}-${YYYYMMDDHHi:6:2}_${YYYYMMDDHHi:8:2}")
 for file in "${files_ungrib[@]}"
