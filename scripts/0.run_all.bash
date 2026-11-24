@@ -52,6 +52,21 @@ case "${STEP}" in
         exit 1
         ;;
 esac
+
+# Configure MODEL resources only when this workflow will run the model.
+# System defaults and run_config.local.bash have already been loaded.
+if [[ "${STEP}" == "RUN" || "${STEP}" == "ALL" ]]; then
+    MODEL_RESOURCE_HELPER="${SCRIPTS}/stools/configure_model_resources.bash"
+
+    if [[ ! -r "$MODEL_RESOURCE_HELPER" ]]; then
+        echo "ERROR: Missing resource configuration helper:" >&2
+        echo "  $MODEL_RESOURCE_HELPER" >&2
+        exit 1
+    fi
+
+    source "$MODEL_RESOURCE_HELPER" || exit 1
+    configure_model_resources || exit 1
+fi
 #----------------------------------------------------------------------
 
 # Check and confirm run configuration:---------------------------------
