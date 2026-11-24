@@ -185,9 +185,43 @@ elif [[ "$RES" == "ellipse_3km_nowcasting" ]]; then #3 km (Bacia do La Plata+Sud
    CONFIG_CONV_INTERVAL="00:15:00"
    CONFIG_LEN_DISP=3000
 else
-    echo -e  "\n${RED}==>${NC} ***** ATTENTION *****\n"
-    echo -e  "${RED}==>${NC} [${0}] Simulation parameters for resolution $RES have not been set! Edit them in '3.run_model.bash'.\n"
-    exit -1
+    # Custom grid settings live beside the mesh, outside Git.
+    grid_spec="${DATAIN}/fixed/x1.${RES}.grid.bash"
+
+    if [[ ! -r "$grid_spec" ]]; then
+        echo "ERROR: Grid '$RES' has no built-in defaults." >&2
+        echo "Create its specification file: $grid_spec" >&2
+        echo "Required: CONFIG_DT CONFIG_CONV_INTERVAL CONFIG_LEN_DISP" >&2
+        exit 1
+    fi
+
+    # Require this file to supply the settings, not inherited variables.
+    unset CONFIG_DT CONFIG_CONV_INTERVAL CONFIG_LEN_DISP
+
+    echo "Loading custom grid specification: $grid_spec"
+    bash -n "$grid_spec" || exit 1
+    source "$grid_spec" || exit 1
+
+    for name in CONFIG_DT CONFIG_CONV_INTERVAL CONFIG_LEN_DISP; do
+        if [[ -z "${!name:-}" ]]; then
+            echo "ERROR: $grid_spec must define $name." >&2
+            exit 1
+        fi
+    done
+
+    if ! awk -v dt="$CONFIG_DT" -v disp="$CONFIG_LEN_DISP" 'BEGIN {
+        number="^[0-9]+([.][0-9]+)?$"
+        exit !(dt ~ number && dt+0 > 0 && disp ~ number && disp+0 > 0)
+    }'; then
+        echo "ERROR: CONFIG_DT and CONFIG_LEN_DISP must be positive numbers." >&2
+        exit 1
+    fi
+
+    if [[ ! "$CONFIG_CONV_INTERVAL" =~ ^[0-9]{2}:[0-5][0-9]:[0-5][0-9]$ ||
+          "$CONFIG_CONV_INTERVAL" == "00:00:00" ]]; then
+        echo "ERROR: CONFIG_CONV_INTERVAL must be a positive HH:MM:SS interval." >&2
+        exit 1
+    fi
 fi
 #-------------------------------------------------------
 

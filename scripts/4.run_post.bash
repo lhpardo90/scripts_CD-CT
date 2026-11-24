@@ -233,9 +233,45 @@ elif [[ "$RES" == "ellipse_3km_nowcasting" ]]; then # 3 km nowcasting grid
    STARTLON=282.0
    ENDLON=330.0
 else
-   echo -e "\n${RED}==>${NC} ***** ATTENTION *****\n"
-   echo -e "${RED}==>${NC} [${0}] Post-processing parameters for resolution ${RES} have not been set.\n"
-   exit -1
+    # Custom grid settings live beside the mesh, outside Git.
+    grid_spec="${DATAIN}/fixed/x1.${RES}.grid.bash"
+
+    if [[ ! -r "$grid_spec" ]]; then
+        echo "ERROR: Grid '$RES' has no built-in defaults." >&2
+        echo "Create its specification file: $grid_spec" >&2
+        echo "Required: NLAT NLON STARTLAT ENDLAT STARTLON ENDLON" >&2
+        exit 1
+    fi
+
+    unset NLAT NLON STARTLAT ENDLAT STARTLON ENDLON
+
+    echo "Loading custom grid specification: $grid_spec"
+    bash -n "$grid_spec" || exit 1
+    source "$grid_spec" || exit 1
+
+    for name in NLAT NLON STARTLAT ENDLAT STARTLON ENDLON; do
+        if [[ -z "${!name:-}" ]]; then
+            echo "ERROR: $grid_spec must define $name." >&2
+            exit 1
+        fi
+    done
+
+    if ! awk -v ny="$NLAT" -v nx="$NLON" \
+        -v south="$STARTLAT" -v north="$ENDLAT" \
+        -v west="$STARTLON" -v east="$ENDLON" 'BEGIN {
+        number="^-?[0-9]+([.][0-9]+)?$"
+        exit !(ny ~ /^[0-9]+$/ && nx ~ /^[0-9]+$/ &&
+               ny+0 >= 2 && nx+0 >= 2 &&
+               south ~ number && north ~ number &&
+               west ~ number && east ~ number &&
+               south+0 >= -90 && north+0 <= 90 &&
+               north+0 > south+0 &&
+               east+0 > west+0 && east-west <= 360)
+    }'; then
+        echo "ERROR: Invalid postprocessing grid in $grid_spec." >&2
+        echo "Use NLAT/NLON >= 2 and increasing latitude/longitude bounds." >&2
+        exit 1
+    fi
 fi
 #-------------------------------------------------------
 
@@ -343,7 +379,7 @@ do
    cd ${DIRRUN}/dir.\${i}
    chmod 755 *
    hh=${YYYYMMDDHHi:8:2}
-   currentdate=\$(date -u -d "@\$(( ${START_EPOCH} + ${FIRST_OFFSET} + (\${i}-1)*${DIAG_INTERVAL_SEC} ))" +"%Y%m%d%H.%M.%S")
+   currentdate=\$(date -u -d "@\$(( ${START_EPOCH} + ${FIRST_OFFSET} + (\${ii}-1)*${DIAG_INTERVAL_SEC} ))" +"%Y%m%d%H.%M.%S")
    diag_name=MONAN_DIAG_${RORG}_MOD_${EXP}_${YYYYMMDDHHi}_\${currentdate}.x${RES}L${N_MODEL_LEV}.nc
 
    model_file=${DATAOUT}/${RUN_ID}/Model/\${diag_name}
@@ -385,7 +421,7 @@ for ii in \$(seq  ${inicio} ${fim})
 do
    i=\$(printf "%04d" \${ii})
    hh=${YYYYMMDDHHi:8:2}
-   currentdate=\$(date -u -d "@\$(( ${START_EPOCH} + ${FIRST_OFFSET} + (\${i}-1)*${DIAG_INTERVAL_SEC} ))" +"%Y%m%d%H.%M.%S")
+   currentdate=\$(date -u -d "@\$(( ${START_EPOCH} + ${FIRST_OFFSET} + (\${ii}-1)*${DIAG_INTERVAL_SEC} ))" +"%Y%m%d%H.%M.%S")
    diag_name_post=MONAN_DIAG_${RORG}_POS_${EXP}_${YYYYMMDDHHi}_\${currentdate}.x${RES}L${N_MODEL_LEV}.nc
 
    cd ${DIRRUN}/dir.\${i}
