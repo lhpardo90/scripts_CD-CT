@@ -53,19 +53,28 @@ case "${STEP}" in
         ;;
 esac
 
-# Configure MODEL resources only when this workflow will run the model.
 # System defaults and run_config.local.bash have already been loaded.
-if [[ "${STEP}" == "RUN" || "${STEP}" == "ALL" ]]; then
-    MODEL_RESOURCE_HELPER="${SCRIPTS}/stools/configure_model_resources.bash"
+# Select which stage resource settings this workflow needs.
+case "$STEP" in
+    PRE)     MONAN_RESOURCE_STAGES="STATIC DEGRIB INITATMOS LBCS" ;;
+    RUN)     MONAN_RESOURCE_STAGES="MODEL" ;;
+    POST)    MONAN_RESOURCE_STAGES="POST" ;;
+    ALL)     MONAN_RESOURCE_STAGES="STATIC DEGRIB INITATMOS LBCS MODEL POST" ;;
+    COMPILE) MONAN_RESOURCE_STAGES="" ;;
+esac
+export MONAN_RESOURCE_STAGES
 
-    if [[ ! -r "$MODEL_RESOURCE_HELPER" ]]; then
-        echo "ERROR: Missing resource configuration helper:" >&2
-        echo "  $MODEL_RESOURCE_HELPER" >&2
+# Export the absolute path so child scripts can reapply these settings.
+export MONAN_RESOURCE_HELPER="${SCRIPTS}/stools/configure_model_resources.bash"
+
+if [[ -n "$MONAN_RESOURCE_STAGES" ]]; then
+    if [[ ! -r "$MONAN_RESOURCE_HELPER" ]]; then
+        echo "ERROR: Missing resource helper: $MONAN_RESOURCE_HELPER" >&2
         exit 1
     fi
 
-    source "$MODEL_RESOURCE_HELPER" || exit 1
-    configure_model_resources || exit 1
+    source "$MONAN_RESOURCE_HELPER" || exit 1
+    configure_workflow_resources || exit 1
 fi
 #----------------------------------------------------------------------
 

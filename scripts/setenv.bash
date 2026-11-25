@@ -126,4 +126,16 @@ how_many_nodes () {
 }
 #----------------------------------------------------------------------------------------------
 
+# Reapply resource choices inherited from 0.run_all.bash.
+# Must remain AFTER all system and local environment defaults.
+if [[ "${SYSTEM_KEY:-}" == "PBS_ian" &&
+      -n "${MONAN_RESOURCE_STAGES:-}" ]]; then
 
+    if [[ ! -r "${MONAN_RESOURCE_HELPER:-}" ]]; then
+        echo "ERROR: Resource helper unavailable: ${MONAN_RESOURCE_HELPER:-unset}" >&2
+        exit 1
+    fi
+
+    source "$MONAN_RESOURCE_HELPER" || exit 1
+    configure_workflow_resources quiet || exit 1
+fi
